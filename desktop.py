@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Universal Translator - Desktop App
+双击运行：内置服务（静态文件 + 翻译代理） + 内嵌窗口（pywebview），关窗口即退出。
+前端资源位于 web/ 目录（开发模式：与脚本同级；打包后：_MEIPASS/web）。
+"""
+import base64
+import functools
+import hashlib
+import http.server
+import json
+import os
+import shutil
+import socket
+import socketserver
+import sys
+import tempfile
+import threading
+import time
+import urllib.parse
+import urllib.request
+import uuid
+import webbrowser
+
+from unpack.xp3 import Xp3Error, pack_bytes, unpack_bytes
+
+APP_NAME = 'Universal Translator'
+CANDIDATE_PORTS = (8123, 8000, 8124, 8125, 8130, 8888)
+
+UNPACK_ROOT = None  # xp3 解包临时根目录（应用退出时清理）
+MAX_XP3_SIZE = 300 * 1024 * 1024
+
+
+def ensure_unpack_root():
+    global UNPACK_ROOT
+    if UNPACK_ROOT is None:
+        UNPACK_ROOT = tempfile.mkdtemp(prefix='ut_xp3_')
+    return UNPACK_ROOT
+
+
+def clean_unpack_root():
+    global UNPACK_ROOT
+    if UNPACK_ROOT and os.path.isdir(UNPACK_ROOT):
+        shutil.rmtree(UNPACK_ROOT, ignore_errors=True)
+        UNPACK_ROOT = None
+
+
+def safe_join(base, rel):
+    """把 rel 安全地拼到 base 下（防目录穿越）"""
+    base_real = os.path.realpath(base)
+    p = os.path.realpath(os.path.join(base_real, rel.replace('\\', os.sep)))
+    if not p.startswith(base_real + os.sep) and p != base_real:
+        return None
+    return p
+
+
+def get_web_root():
+    if getattr(sys, 'frozen', False):
+        base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        web = os.path.join(base, 'web')
+        return web if os.path.isdir(web) else base
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
+
+
+def find_free_port():
+    for port in CANDIDATE_PORTS:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(('127.0.0.1', port))
+            return port
+        except OSError:
+            pass
+        finally:
+            s.close()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def baidu_translate(texts, settings):
+    appid = (settings.get('baiduAppid') or '').strip()
+    key = (settings.get('apiKey') or '').strip()
+    if not appid or not key:
+        raise RuntimeError('请先填写百度 APP ID 和密钥（右上角设置）')
+    lang = {'zh-CN': 'zh', 'zh-TW': 'cht', 'en': 'en', 'ja': 'jp'}.get(settings.get('targetLang', 'zh-CN'), 'zh')
+    results = []
+    for i in range(0, len(texts), 5):
+        batch = texts[i:i + 5]
+        q = '\n'.join(batch)
+        salt = str(int(time.time() * 1000))
+        sign = hashlib.md5((appid + q + salt + key).encode('utf-8')).hexdigest()
+        params = urllib.parse.urlencode({'q': q, 'from': 'auto', 'to': lang, 'appid': appid, 'salt': salt, 'sign': sign})
+        url = 'https://fanyi-api.baidu.com/api/trans/vip/translate?' + params
+        with urllib.request.urlopen(url, timeout=20) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        if data.get('error_code'):
+            raise RuntimeError('百度 ' + str(data['error_code']) + ' ' + str(data.get('error_msg', '')))
+        results.extend(x['dst'] for x in data.get('trans_result', []))
+    return results
+
+
+def deepl_translate(texts, settings):
+    key = (settings.get('apiKey') or '').strip()
+    if not key:
+        raise RuntimeError('请先填写 DeepL API Key（右上角设置）')
+    target = {'zh-CN': 'ZH-HANS', 'zh-TW': 'ZH-HANT', 'en': 'EN-US', 'ja': 'JA'}.get(settings.get('targetLang', 'zh-CN'), 'ZH-HANS')
+    body = urllib.parse.urlencode([('target_lang', target)] + [('text', t) for t in texts]).encode('utf-8')
+    req = urllib.request.Request('https://api-free.deepl.com/v2/translate', data=body,
+                                 headers={'Authorization': 'DeepL-Auth-Key ' + key})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        data = json.loads(resp.read().decode('utf-8'))
+    return [x['text'] for x in data.get('translations', [])]
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, directory=None, **kwargs):
+        super().__init__(*args, directory=(directory or get_web_root()), **kwargs)
+
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
+    def do_GET(self):
+        if self.path.startswith('/api/unpack-file?'):
+            self._handle_unpack_file()
+            return
+        super().do_GET()
+
+    def do_POST(self):
+        if self.path == '/api/translate':
+            self._handle_translate()
+        elif self.path == '/api/encode':
+            self._handle_encode()
+        elif self.path == '/api/unpack':
+            self._handle_unpack()
+        elif self.path == '/api/pack':
+            self._handle_pack()
+        else:
+            self.send_error(404, 'Not Found')
+
+    def _handle_unpack(self):
+        # 接收 xp3 文件字节 → 解包到临时目录 → 返回文件清单
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length <= 0:
+                raise RuntimeError('未收到文件内容')
+            if length > MAX_XP3_SIZE:
+                raise RuntimeError('xp3 文件过大（>%dMB），暂不支持' % (MAX_XP3_SIZE // 1024 // 1024))
+            data = self.rfile.read(length)
+            temp_id = uuid.uuid4().hex[:8]
+            out_dir = os.path.join(ensure_unpack_root(), temp_id)
+            os.makedirs(out_dir)
+            files = unpack_bytes(data, out_dir)
+            self._json({'ok': True, 'tempId': temp_id, 'files': files})
+        except Xp3Error as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_unpack_file(self):
+        # 读取解包出的单个文件（二进制）
+        try:
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            temp_id = (q.get('tempId') or [''])[0]
+            rel = (q.get('rel') or [''])[0]
+            if not temp_id or not rel:
+                self.send_error(400, 'Bad Request')
+                return
+            base = os.path.join(ensure_unpack_root(), temp_id)
+            p = safe_join(base, rel)
+            if not p:
+                self.send_error(403, 'Forbidden')
+                return
+            if not os.path.isfile(p):
+                self.send_error(404, 'Not Found')
+                return
+            with open(p, 'rb') as f:
+                body = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_pack(self):
+        # 接收修改后的文件字节 → 合并解包内容 → 重新封包 → 返回新 xp3 二进制
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            temp_id = body.get('tempId') or ''
+            modified = body.get('files') or {}  # {rel: base64}
+            base = os.path.join(ensure_unpack_root(), temp_id)
+            if not temp_id or not os.path.isdir(base):
+                raise RuntimeError('解包会话不存在或已过期，请重新解包')
+            all_files = {}
+            for root, _dirs, fnames in os.walk(base):
+                for fn in fnames:
+                    fp = os.path.join(root, fn)
+                    rel = os.path.relpath(fp, base).replace(os.sep, '/')
+                    with open(fp, 'rb') as f:
+                        all_files[rel] = f.read()
+            for rel, b64 in modified.items():
+                if not safe_join(base, rel):
+                    raise RuntimeError('非法路径: ' + rel)
+                all_files[rel] = base64.b64decode(b64)
+            blob = pack_bytes(all_files)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Content-Disposition', 'attachment; filename="translated.xp3"')
+            self.send_header('Content-Length', str(len(blob)))
+            self.end_headers()
+            self.wfile.write(blob)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_translate(self):
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            provider = body.get('provider')
+            texts = body.get('texts') or []
+            settings = body.get('settings') or {}
+            if provider == 'baidu':
+                results = baidu_translate(texts, settings)
+            elif provider == 'deepl':
+                results = deepl_translate(texts, settings)
+            else:
+                raise RuntimeError('未知引擎: ' + str(provider))
+            self._json({'ok': True, 'results': results})
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_encode(self):
+        # 浏览器端无法编码 Shift-JIS/GBK（TextEncoder 只支持 UTF-8），由本地服务代劳
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            enc = body.get('encoding')
+            text = body.get('text') or ''
+            py_enc = {'shift_jis': 'shift_jis', 'gbk': 'gbk'}.get(enc)
+            if not py_enc:
+                raise RuntimeError('不支持的编码: ' + str(enc))
+            raw = text.encode(py_enc)
+            self._json({'ok': True, 'bytes': list(raw)})
+        except UnicodeEncodeError as e:
+            self._json({'ok': False,
+                        'error': '译文包含无法用 %s 表示的字符，请改用 UTF-8 导出（%s）' % (enc, e.reason)}, 502)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _json(self, obj, code=200):
+        data = json.dumps(obj, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, fmt, *args):
+        sys.stdout.write('[%s] %s\n' % (time.strftime('%H:%M:%S'), fmt % args))
+
+
+def main():
+    port = find_free_port()
+    handler = functools.partial(Handler, directory=get_web_root())
+    httpd = socketserver.ThreadingTCPServer(('127.0.0.1', port), handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    url = 'http://127.0.0.1:%d' % port
+
+    used_webview = False
+    try:
+        import webview  # pip install pywebview
+        webview.create_window(APP_NAME, url, width=1280, height=860, min_size=(900, 620))
+        webview.start()
+        used_webview = True
+    except Exception:
+        webbrowser.open(url)
+        print('Opened in browser: %s' % url)
+        print('Close this window to stop the server.')
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        clean_unpack_root()
+
+
+if __name__ == '__main__':
+    main()

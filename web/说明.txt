@@ -1,0 +1,4 @@
+# web/ — 前端资源（桌面版内置）
+
+此目录是桌面版自带的前端副本（与 Web 版项目 universal-translator 的根目录文件同步）。
+修改前端代码后，请用 Web 版项目里的 sync-desktop.ps1 同步到此处，或手动复制。

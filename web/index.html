@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>万能翻译站 · Universal Translator</title>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body data-theme="dark" data-view="bilingual">
+
+<header class="ut-header">
+  <div class="ut-brand">
+    <span class="ut-brand__mark">译</span>
+    <span class="ut-brand__name">万能翻译站</span>
+    <span class="ut-brand__ver">v1.1.0</span>
+  </div>
+  <nav class="ut-nav" id="mainNav">
+    <button class="ut-nav__item is-active" data-ws="document" type="button">文档</button>
+    <button class="ut-nav__item" data-ws="game" type="button">游戏</button>
+    <button class="ut-nav__item" data-ws="image" type="button">图片</button>
+  </nav>
+  <div class="ut-header__actions">
+    <button class="ut-icon-btn" id="themeToggle" type="button" title="切换深浅色主题">
+      <svg class="icon ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19"/></svg>
+      <svg class="icon ico-moon" viewBox="0 0 24 24"><path d="M20 13.2A8.2 8.2 0 0 1 10.8 4a8.2 8.2 0 1 0 9.2 9.2Z"/></svg>
+    </button>
+    <button class="ut-icon-btn" id="openSettings" type="button" title="设置">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15.5" cy="8" r="2.2"/><circle cx="9.5" cy="16" r="2.2"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="ut-main">
+
+  <!-- 文档工作台（占位） -->
+  <section class="ut-workspace" id="ws-document">
+    <div class="ut-empty">
+      <div class="ut-empty__icon">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/></svg>
+      </div>
+      <h2 class="ut-empty__title">文档翻译</h2>
+      <p class="ut-empty__desc">Word / PDF / Markdown 等文档翻译，开发中</p>
+      <span class="ut-badge">规划中</span>
+    </div>
+  </section>
+
+  <!-- 游戏工作台 -->
+  <section class="ut-workspace" id="ws-game" hidden>
+
+    <!-- 阶段 1：选择文件夹（一步到位） -->
+    <div class="ut-stage" id="stage-import">
+      <div class="ut-dropzone" id="gameDropzone" tabindex="0" role="button">
+        <div class="ut-dropzone__icon">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        </div>
+        <p class="ut-dropzone__title">拖入游戏文件夹，或点击选择</p>
+        <p class="ut-dropzone__hint">自动扫描游戏文本并识别引擎，全程只需一步</p>
+        <p class="ut-dropzone__hint" id="engineStatus"></p>
+      </div>
+    </div>
+
+    <!-- 阶段 2：扫描文件 -->
+    <div class="ut-stage" id="stage-scan" hidden>
+      <div class="ut-game-card" id="gameCard" hidden>
+        <div class="ut-game-card__main">
+          <div class="ut-game-card__icon">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <div class="ut-game-card__info">
+            <h3 class="ut-game-card__name" id="gameName">-</h3>
+            <p class="ut-game-card__meta" id="gameMeta">-</p>
+          </div>
+          <span class="ut-badge" id="gameEngineBadge">引擎未知</span>
+        </div>
+        <div class="ut-game-card__actions">
+          <button class="ut-btn ut-btn--ghost" id="resetGameBtn" type="button">重新选择文件夹</button>
+        </div>
+      </div>
+      <div class="ut-stage-head">
+        <h2 class="ut-stage-title" id="scanTitle">扫描文本文件</h2>
+        <div class="ut-stage-actions">
+          <button class="ut-btn ut-btn--ghost" id="backToImportBtn" type="button">
+            <svg class="icon icon--sm" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            返回
+          </button>
+          <label class="ut-check"><input type="checkbox" id="checkAll" checked> 全选</label>
+          <button class="ut-btn ut-btn--primary" id="startTranslateBtn" type="button" disabled>提取并翻译</button>
+        </div>
+      </div>
+      <div class="ut-xp3-bar" id="xp3Bar" hidden>
+        <span id="xp3BarText"></span>
+        <button class="ut-btn ut-btn--ghost" id="unpackXp3Btn" type="button">解包并翻译</button>
+      </div>
+      <div class="ut-file-list" id="fileList"></div>
+    </div>
+
+    <!-- 阶段 3：翻译 + 双语浏览 -->
+    <div class="ut-stage" id="stage-browse" hidden>
+      <div class="ut-toolbar">
+        <button class="ut-btn ut-btn--ghost" id="backBtn" type="button">
+          <svg class="icon icon--sm" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          返回
+        </button>
+        <div class="ut-seg" id="viewSwitch">
+          <button class="ut-seg__item" data-view="original" type="button">仅原文</button>
+          <button class="ut-seg__item is-active" data-view="bilingual" type="button">对照</button>
+          <button class="ut-seg__item" data-view="translated" type="button">仅译文</button>
+        </div>
+        <div class="ut-toolbar__spacer"></div>
+        <div class="ut-filter" id="filterBar" hidden>
+          <button class="ut-chip is-active" data-filter="all" type="button">全部</button>
+          <button class="ut-chip" data-filter="untranslated" type="button">未翻译</button>
+          <button class="ut-chip" data-filter="translated" type="button">已翻译</button>
+        </div>
+        <input class="ut-search" id="searchInput" type="search" placeholder="搜索原文或译文" hidden>
+        <button class="ut-btn ut-btn--primary" id="exportBtn" type="button" disabled>导出</button>
+        <button class="ut-btn" id="exportXp3Btn" type="button" hidden>封包为 xp3</button>
+      </div>
+      <div class="ut-browser">
+        <aside class="ut-file-tree" id="fileTree"></aside>
+        <div class="ut-unit-list" id="unitList"></div>
+      </div>
+      <div class="ut-progress" id="progressWrap" hidden>
+        <div class="ut-progress__bar" id="progressBar"></div>
+        <div class="ut-progress__row">
+          <span class="ut-progress__text" id="progressText"></span>
+          <button class="ut-btn ut-btn--ghost" id="stopBtn" type="button" hidden>停止</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- 图片工作台（占位） -->
+  <section class="ut-workspace" id="ws-image" hidden>
+    <div class="ut-empty">
+      <div class="ut-empty__icon">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4.5 17.5 5-5 4 4 2.5-2.5 3.5 3.5"/></svg>
+      </div>
+      <h2 class="ut-empty__title">图片翻译</h2>
+      <p class="ut-empty__desc">图片中的文字识别与翻译替换，规划中</p>
+      <span class="ut-badge">规划中</span>
+    </div>
+  </section>
+
+</main>
+
+<!-- 设置抽屉 -->
+<div class="ut-drawer-backdrop" id="settingsBackdrop" hidden></div>
+<aside class="ut-drawer" id="settingsDrawer" hidden>
+  <div class="ut-drawer__head">
+    <h3>设置</h3>
+    <button class="ut-icon-btn" id="closeSettings" type="button">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="ut-drawer__body">
+    <label class="ut-field">
+      <span>翻译引擎</span>
+      <select id="providerSelect">
+        <option value="mymemory">MyMemory（免费 · 无需配置）</option>
+        <option value="baidu">百度翻译（国内稳定 · 免费额度，需 APP ID + 密钥）</option>
+        <option value="deepl">DeepL（需 API Key）</option>
+        <option value="openai">OpenAI 兼容接口（本地 / 云端 LLM）</option>
+      </select>
+      <p class="ut-field__status" id="providerStatus"></p>
+    </label>
+    <div class="ut-field" id="appidField" hidden>
+      <span>百度 APP ID</span>
+      <input type="text" id="baiduAppidInput" placeholder="在百度翻译开放平台申请">
+    </div>
+    <div class="ut-field" id="apiKeyField" hidden>
+      <span>密钥 / API Key</span>
+      <input type="password" id="apiKeyInput" placeholder="粘贴密钥">
+    </div>
+    <div class="ut-field" id="baseUrlField" hidden>
+      <span>接口地址</span>
+      <input type="text" id="baseUrlInput" placeholder="http://127.0.0.1:11434/v1">
+    </div>
+    <div class="ut-field" id="modelField" hidden>
+      <span>模型名称</span>
+      <input type="text" id="modelInput" placeholder="如 qwen2.5:7b">
+    </div>
+    <label class="ut-field">
+      <span>目标语言</span>
+      <select id="targetLang">
+        <option value="zh-CN" selected>简体中文</option>
+        <option value="zh-TW">繁体中文</option>
+        <option value="en">英语</option>
+        <option value="ja">日语</option>
+      </select>
+    </label>
+    <label class="ut-field">
+      <span>并发请求数</span>
+      <input type="number" id="concurrencyInput" min="1" max="10" value="3">
+    </label>
+    <label class="ut-field">
+      <span>文本文件大小上限（MB）</span>
+      <input type="number" id="maxSizeInput" min="1" max="200" value="8">
+    </label>
+
+    <div class="ut-drawer__help">
+      <details class="ut-help" open>
+        <summary>
+          <svg class="icon icon--sm" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          使用说明
+        </summary>
+        <div class="ut-help__body">
+          <h4>使用方法</h4>
+          <ol>
+            <li>把游戏文件夹拖进窗口，或点击选择（自动识别文件编码，日文游戏无需手动转码）</li>
+            <li>扫描到 .xp3 资源包：点「解包并翻译」，包内文本会加入文件列表（标记【xp3】）</li>
+            <li>勾选文本文件 → 「提取并翻译」</li>
+            <li>左侧文件树查看译文，顶部切换 仅原文 / 对照 / 仅译文</li>
+            <li>「导出」下载 zip（保持原编码）；解包过的资源包可「封包为 xp3」（原包自行备份后替换）</li>
+          </ol>
+          <h4>翻译引擎</h4>
+          <ul>
+            <li>MyMemory：免费，无需配置，有每日额度</li>
+            <li>百度翻译：国内稳定，免费额度，需 APP ID + 密钥</li>
+            <li>DeepL：需 API Key</li>
+            <li>OpenAI 兼容：本地 LLM（Ollama / LM Studio 等）</li>
+          </ul>
+          <h4>常见问题</h4>
+          <ul>
+            <li>Windows 提示“未知发布者”？点「更多信息 → 仍要运行」，程序没有病毒</li>
+            <li>杀毒软件报警？属误报，添加信任即可</li>
+            <li>译文中文显示为方块？原日文编码装不下中文时已自动转存 UTF-8，游戏可能需要中文字库</li>
+            <li>加密的 xp3 暂不支持（会提示“已加密”）</li>
+            <li>所有处理在本机完成，游戏文件不会被上传到任何服务器</li>
+          </ul>
+        </div>
+      </details>
+      <details class="ut-help">
+        <summary>
+          <svg class="icon icon--sm" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          更新日志
+        </summary>
+        <div class="ut-help__body">
+          <h4>v1.1.0 (2026-08-14) · 首个正式版本</h4>
+          <ul>
+            <li>全新「高级简约」界面（绿子设计）：暖灰纸感基底、墨色主按钮、雾钢蓝点缀、细线轻阴影，深浅双主题</li>
+            <li>图标全面换成细线 SVG；默认浅色，主题偏好自动记忆</li>
+            <li>翻译 / 扫描界面「← 返回」按钮；使用说明与更新日志内置在设置界面</li>
+            <li>文件编码自动检测（UTF-8 / Shift-JIS / GBK / UTF-16），日文游戏免转码</li>
+            <li>吉里吉里 xp3 资源包解包 + 封包（加密包暂不支持）</li>
+            <li>导出保持原编码；译文装不下时转存 UTF-8 并提示（可能需要中文字库）</li>
+            <li>引擎：MyMemory / 百度 / DeepL / OpenAI 兼容</li>
+            <li>修复：日文引号「」提取、日文纯汉字词误跳、json 导出译文不生效</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

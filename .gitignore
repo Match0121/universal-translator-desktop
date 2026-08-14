@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller 构建产物
+build/
+dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地测试临时文件
+test_*.py
+dbg_*.py
+mk_fixture*.py
