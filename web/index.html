@@ -14,7 +14,7 @@
   <div class="ut-brand">
     <span class="ut-brand__mark">译</span>
     <span class="ut-brand__name">万能翻译站</span>
-    <span class="ut-brand__ver">v1.1.0</span>
+    <span class="ut-brand__ver">v1.1.1</span>
   </div>
   <nav class="ut-nav" id="mainNav">
     <button class="ut-nav__item is-active" data-ws="document" type="button">文档</button>
@@ -208,6 +208,14 @@
           使用说明
         </summary>
         <div class="ut-help__body">
+          <h4>支持翻译的文件</h4>
+          <ul>
+            <li>文本文件：txt / md / json / yaml / ini / cfg / srt / ass 等</li>
+            <li>游戏剧本：rpy（Ren'Py 引擎）、ks（吉里吉里引擎，支持日文「」引号）</li>
+            <li>资源包：吉里吉里 xp3（可解包翻译后重新封包；加密包不支持）</li>
+            <li>编码自动识别：UTF-8 / UTF-16 / Shift-JIS（日文）/ GBK（中文）</li>
+            <li>暂不支持：图片文字、Unity/UE 等引擎的资源包、程序内嵌字符串</li>
+          </ul>
           <h4>使用方法</h4>
           <ol>
             <li>把游戏文件夹拖进窗口，或点击选择（自动识别文件编码，日文游戏无需手动转码）</li>
@@ -239,6 +247,10 @@
           更新日志
         </summary>
         <div class="ut-help__body">
+          <h4>v1.1.1 (2026-08-14)</h4>
+          <ul>
+            <li>使用说明补充「支持翻译的文件」范围清单</li>
+          </ul>
           <h4>v1.1.0 (2026-08-14) · 首个正式版本</h4>
           <ul>
             <li>全新「高级简约」界面（绿子设计）：暖灰纸感基底、墨色主按钮、雾钢蓝点缀、细线轻阴影，深浅双主题</li>
