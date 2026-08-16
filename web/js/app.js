@@ -1,6 +1,6 @@
 // app.js — 入口：路由 + 游戏翻译全流程编排
 
-import { $, $$, debounce, extOf } from './utils.js';
+import { $, $$, debounce, extOf, fmtBytes, escapeHtml, downloadBlob } from './utils.js';
 import { store } from './store.js';
 import { parseExe } from './features/game/exeParser.js';
 import { pickGameFolder, scanFolder } from './features/game/dirScanner.js';
@@ -9,6 +9,7 @@ import { readText } from './features/game/encoding.js';
 import { translateUnits } from './features/game/translator.js';
 import { renderFileList, renderFileTree, renderFileContent, showProgress, hideProgress } from './features/game/bilingView.js';
 import { exportZip, exportXp3 } from './features/game/exporter.js';
+import { detectDocType, extractDoc, rebuildDoc, docText, DOC_EXT } from './features/doc/docParser.js';
 
 /* ---------------- 基础 ---------------- */
 
@@ -444,6 +445,158 @@ $('#exportXp3Btn').addEventListener('click', async () => {
     }
   } catch (e) {
     alert('封包失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------------- 文档翻译 ---------------- */
+
+const docState = { files: [], units: [], view: 'bilingual', activeFile: null };
+
+function docShowStage(name) {
+  $$('#ws-document .ut-stage').forEach(s => { s.hidden = s.id !== 'doc-stage-' + name; });
+}
+
+async function docAddFiles(flist) {
+  const files = [];
+  for (const f of flist) {
+    if (!detectDocType(f.name)) continue;
+    files.push({ name: f.name, file: f, size: f.size, type: detectDocType(f.name), unitCount: 0 });
+  }
+  if (!files.length) { alert('不支持的文档格式（支持 md / txt / html / docx / epub）'); return; }
+  docState.files = files;
+  docState.units = [];
+  docRenderList();
+  docShowStage('scan');
+}
+
+function docRenderList() {
+  $('#docScanTitle').textContent = `共 ${docState.files.length} 个文档`;
+  $('#docFileList').innerHTML = docState.files.map(f => `
+    <label class="ut-file-item">
+      <input type="checkbox" data-path="${escapeHtml(f.name)}" checked>
+      <span class="ut-file-item__name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      <span class="ut-file-item__size">${fmtBytes(f.size)}</span>
+    </label>`).join('') || '<p class="ut-muted">未添加文档</p>';
+}
+
+function docRenderTree() {
+  const el = $('#docFileTree');
+  el.innerHTML = docState.files.map(f => {
+    const n = docState.units.filter(u => u.file === f.name).length;
+    const done = docState.units.filter(u => u.file === f.name && u.translated).length;
+    const active = f.name === docState.activeFile;
+    return `<div class="ut-file-node${active ? ' is-active' : ''}" data-doc="${escapeHtml(f.name)}" title="${escapeHtml(f.name)}">
+      <span class="ut-file-node__name">${escapeHtml(f.name)}</span>
+      <span class="ut-file-node__count">${n}${done ? ` / ${done}✓` : ''}</span>
+    </div>`;
+  }).join('') || '<p class="ut-muted">无文档</p>';
+}
+
+function docRenderContent() {
+  const el = $('#docContent');
+  const f = docState.files.find(x => x.name === docState.activeFile);
+  if (!f) {
+    el.innerHTML = '<p class="ut-empty-small">选择左侧文档查看翻译结果</p>';
+    return;
+  }
+  const us = docState.units.filter(u => u.file === f.name);
+  el.innerHTML = `<pre class="ut-file-content">${escapeHtml(docText(us, docState.view))}</pre>`;
+}
+
+const docDz = $('#docDropzone');
+docDz.addEventListener('dragover', e => { e.preventDefault(); docDz.classList.add('is-dragover'); });
+docDz.addEventListener('dragleave', () => docDz.classList.remove('is-dragover'));
+docDz.addEventListener('drop', async e => {
+  e.preventDefault();
+  docDz.classList.remove('is-dragover');
+  if (e.dataTransfer && e.dataTransfer.files.length) await docAddFiles(Array.from(e.dataTransfer.files));
+});
+docDz.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.accept = '.md,.txt,.html,.htm,.docx,.epub';
+  input.onchange = async () => { if (input.files && input.files.length) await docAddFiles(Array.from(input.files)); };
+  input.click();
+});
+
+$('#docBackBtn').addEventListener('click', () => { docState.files = []; docState.units = []; docShowStage('import'); });
+$('#docViewBackBtn').addEventListener('click', () => docShowStage('scan'));
+
+$('#docTranslateBtn').addEventListener('click', async () => {
+  const btn = $('#docTranslateBtn');
+  btn.disabled = true;
+  try {
+    if (!docState.files.length) return;
+    docShowStage('view');
+    $('#docProgressWrap').hidden = false;
+    const units = [];
+    for (let i = 0; i < docState.files.length; i++) {
+      const f = docState.files[i];
+      $('#docProgressText').textContent = `提取 ${i + 1}/${docState.files.length}：${f.name}`;
+      const { units: us } = await extractDoc(f.file, f.name);
+      f.unitCount = us.length;
+      units.push(...us);
+    }
+    docState.units = units;
+    docState.activeFile = (docState.files[0] || {}).name;
+    docRenderTree();
+    docRenderContent();
+    $('#docExportBtn').disabled = !units.length;
+    $('#docProgressBar').style.width = '0%';
+    $('#docProgressText').textContent = `共 ${units.length} 个文本单元，开始翻译…`;
+    await translateUnits(units, store.state.settings, (done, total) => {
+      $('#docProgressBar').style.width = (total ? done / total * 100 : 0) + '%';
+      $('#docProgressText').textContent = `翻译中 ${done}/${total}`;
+    });
+    $('#docProgressWrap').hidden = true;
+    docRenderContent();
+    $('#docExportBtn').disabled = !units.some(u => u.translated);
+  } catch (e) {
+    alert('处理失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('#docFileTree').addEventListener('click', e => {
+  const node = e.target.closest('.ut-file-node');
+  if (!node) return;
+  docState.activeFile = node.dataset.doc;
+  docRenderTree();
+  docRenderContent();
+});
+
+$('#docViewSwitch').addEventListener('click', e => {
+  const b = e.target.closest('.ut-seg__item');
+  if (!b) return;
+  docState.view = b.dataset.view;
+  $$('#docViewSwitch .ut-seg__item').forEach(x => x.classList.toggle('is-active', x === b));
+  docRenderContent();
+});
+
+$('#docExportBtn').addEventListener('click', async () => {
+  const btn = $('#docExportBtn');
+  btn.disabled = true;
+  try {
+    let exported = 0;
+    for (const f of docState.files) {
+      const us = docState.units.filter(u => u.file === f.name);
+      if (!us.length) continue;
+      const rebuilt = await rebuildDoc(f.file, f.name, us, docState.view);
+      let blob = rebuilt.blob;
+      if (!blob && rebuilt.text) blob = new Blob([rebuilt.text], { type: 'text/plain;charset=utf-8' });
+      if (!blob) continue;
+      const dot = f.name.lastIndexOf('.');
+      const base = dot > 0 ? f.name.slice(0, dot) : f.name;
+      downloadBlob(blob, base + '_译文' + f.name.slice(dot));
+      exported++;
+    }
+    if (!exported) alert('没有可导出的内容');
+  } catch (e) {
+    alert('导出失败：' + e.message);
   } finally {
     btn.disabled = false;
   }
