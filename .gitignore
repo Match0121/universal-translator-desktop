@@ -16,3 +16,8 @@ desktop.ini
 test_*.py
 dbg_*.py
 mk_fixture*.py
+
+# 宣传文件（本地保留，不推送）
+promo-drafts/
+PROMO-LOG.md
+
