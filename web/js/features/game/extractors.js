@@ -16,15 +16,26 @@ export const TEXT_EXT = new Set([
 const RE_URL = /^(https?:\/\/|www\.|ftp:|\/\/|\w+:\\|\/)/i;
 const RE_JUNK = /^[\d\s.,%+\-*\/=<>:;|!?()[\]{}"'`~^#$@&]+$/;
 
-/** 判断一行文本是否需要翻译（目标是中文时，GBK 中文游戏跳过已是中文的行）
- *  skipPureHan：仅 GBK（中文游戏）启用——Shift-JIS/UTF-8 的日文文本里大量纯汉字词
- *  （回復薬、勇者）没有假名，不能按“纯中文行”跳过 */
+/** 判断是否为中文文本（目标语言为中文时跳过，避免中文行送译被判失败）
+ *  规则：含汉字、无假名，且命中中文强特征（中文标点/中文虚词/4+汉字长句）
+ *  日文纯汉字短词（回復薬、勇者）不含这些特征，不会被误伤 */
+export function isChineseText(t) {
+  const han = (t.match(/[\u4e00-\u9fff]/g) || []).length;
+  if (!han) return false;
+  if (/[\u3040-\u30ff\uff61-\uff9f]/.test(t)) return false; // 含假名 → 日文
+  if (/[，。！？；：「」“”、《》【】]/.test(t)) return true;     // 中文标点
+  if (/[的吧了是在这那吗呢和被与就都还很从到对]/.test(t)) return true; // 中文虚词
+  return han >= 4; // 4+ 汉字无假名 → 中文（日文纯汉字词通常很短）
+}
+
+/** 判断一行文本是否需要翻译（目标是中文时，已是中文的行跳过） */
 export function isTranslateable(s, targetLang = 'zh-CN', skipPureHan = false) {
   if (!s) return false;
   const t = s.trim();
   if (!t || t.length > 800) return false;
   if (RE_URL.test(t) || RE_JUNK.test(t)) return false;
   if (/\s{3,}/.test(t)) return false;
+  if (targetLang && targetLang.startsWith('zh') && isChineseText(t)) return false;
   if (targetLang && targetLang.startsWith('zh') && skipPureHan) {
     const han = (t.match(/[\u4e00-\u9fff]/g) || []).length;
     const kana = (t.match(/[\u3040-\u30ff\uac00-\ud7af]/g) || []).length;

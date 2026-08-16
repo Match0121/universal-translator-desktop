@@ -8,8 +8,6 @@
 // 单元模型与游戏翻译对齐：{file, seq, original, raw, translated, error, ex, docType}
 //  - txt/md 的 raw 记录 lineIndex（行级写回）
 //  - html/docx/epub 的 raw 记录节点定位（seq），写回时用同一过滤规则重新定位节点
-//
-// 本文件无 DOM 依赖的部分可在 node 单测（DOM 部分依赖浏览器 DOMParser）。
 
 import { readText } from '../game/encoding.js';
 
@@ -30,6 +28,13 @@ function isTranslateableDoc(s) {
   const t = s.trim();
   if (!t || t.length > 800) return false;
   if (/^[\d\s.,%+\-*\/=<>:;|!?()[\]{}"'`~^#$@&]+$/.test(t)) return false;
+  // 已是中文的行跳过（中文标点/虚词/4+汉字无假名），避免中文文档行送译被判失败
+  const han = (t.match(/[\u4e00-\u9fff]/g) || []).length;
+  if (han > 0 && !/[\u3040-\u30ff\uff61-\uff9f]/.test(t)) {
+    if (/[，。！？；：「」“”、《》【】]/.test(t)) return false;
+    if (/[的吧了是在这那吗呢和被与就都还很从到对]/.test(t)) return false;
+    if (han >= 4) return false;
+  }
   return true;
 }
 
@@ -64,7 +69,7 @@ function rebuildPlain(meta, units, mode) {
 
 /* ---------------- HTML / EPUB（DOM 文本节点） ---------------- */
 
-function extractHtmlDom(html, fileName, docType, containerFile) {
+function extractHtmlDom(html, fileName, docType, container) {
   const dom = new DOMParser().parseFromString(html, 'text/html');
   const units = [];
   const nodes = [];
@@ -79,7 +84,7 @@ function extractHtmlDom(html, fileName, docType, containerFile) {
   nodes.forEach((n, i) => {
     units.push({
       file: fileName, seq: i, original: (n.nodeValue || '').trim(),
-      raw: { dom, node: n, container: containerFile },
+      raw: { container },
       translated: '', error: '', ex: 'html', docType,
     });
   });
@@ -122,8 +127,8 @@ function docxParagraphs(dom) {
   return Array.from(dom.getElementsByTagNameNS(DOCX_NS, 'p'));
 }
 
-function paraText(para, ns) {
-  const tNodes = para.getElementsByTagNameNS(ns, 't');
+function paraText(para) {
+  const tNodes = para.getElementsByTagNameNS(DOCX_NS, 't');
   let s = '';
   for (const t of tNodes) s += t.textContent || '';
   return s.trim();
@@ -139,11 +144,11 @@ async function extractDocx(file, fileName) {
   const paras = docxParagraphs(dom);
   let seq = 0;
   for (const para of paras) {
-    const original = paraText(para, DOCX_NS);
+    const original = paraText(para);
     if (!isTranslateableDoc(original)) continue;
     units.push({ file: fileName, seq: seq++, original, raw: null, translated: '', error: '', ex: 'docx', docType: 'docx' });
   }
-  return { units, meta: { zip, xml, dom } };
+  return { units, meta: { xml } };
 }
 
 function rebuildDocx(meta, units, mode) {
@@ -152,7 +157,7 @@ function rebuildDocx(meta, units, mode) {
   let seq = 0;
   const bySeq = new Map(units.map(u => [u.seq, u]));
   for (const para of paras) {
-    const original = paraText(para, DOCX_NS);
+    const original = paraText(para);
     if (!isTranslateableDoc(original)) continue;
     const u = bySeq.get(seq);
     seq++;
@@ -164,8 +169,7 @@ function rebuildDocx(meta, units, mode) {
     tNodes[0].textContent = text;
     for (let i = 1; i < tNodes.length; i++) tNodes[i].textContent = '';
   }
-  const newXml = new XMLSerializer().serializeToString(dom);
-  return { text: newXml, zipEntry: 'word/document.xml' };
+  return { text: new XMLSerializer().serializeToString(dom) };
 }
 
 /* ---------------- EPUB（ZIP + 多个 XHTML） ---------------- */
@@ -179,9 +183,9 @@ async function extractEpub(file, fileName) {
   const metas = [];
   for (const name of htmlEntries) {
     const xml = await zip.file(name).async('string');
-    const us = extractHtmlDom(xml, fileName + ' › ' + name.split('/').pop(), 'epub', name);
+    const us = extractHtmlDom(xml, fileName, 'epub', name);
     metas.push({ name, xml });
-    units.push(...us.map(u => ({ ...u, container: name })));
+    units.push(...us);
   }
   return { units, meta: { zip, metas } };
 }
@@ -191,7 +195,7 @@ function rebuildEpub(meta, units, mode) {
   for (const m of meta.metas) byContainer.set(m.name, { xml: m.xml, dom: new DOMParser().parseFromString(m.xml, 'text/html') });
   const changed = new Set();
   for (const u of units) {
-    const c = byContainer.get(u.container);
+    const c = byContainer.get(u.raw && u.raw.container);
     if (!c) continue;
     const nodes = [];
     const walker = c.dom.createTreeWalker(c.dom.body, NodeFilter.SHOW_TEXT, {
@@ -204,7 +208,7 @@ function rebuildEpub(meta, units, mode) {
     while (walker.nextNode()) nodes.push(walker.currentNode);
     const node = nodes[u.seq];
     if (node) node.nodeValue = unitText(u, mode);
-    changed.add(u.container);
+    changed.add(u.raw.container);
   }
   const newXmls = {};
   for (const name of changed) {
