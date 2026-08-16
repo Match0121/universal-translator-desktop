@@ -52,9 +52,11 @@
     <!-- 阶段 2：文件列表 + 提取翻译 -->
     <div class="ut-stage" id="doc-stage-scan" hidden>
       <div class="ut-stage-head">
-        <h2 class="ut-stage-title" id="docScanTitle">文档列表</h2>
-        <div class="ut-stage-actions">
+        <div class="ut-stage-head__left">
           <button class="ut-btn ut-btn--ghost" id="docBackBtn" type="button"><svg class="icon icon--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15 18-6-6 6-6"/></svg>返回</button>
+          <h2 class="ut-stage-title" id="docScanTitle">文档列表</h2>
+        </div>
+        <div class="ut-stage-actions">
           <button class="ut-btn ut-btn--primary" id="docTranslateBtn" type="button">提取并翻译</button>
         </div>
       </div>
@@ -79,7 +81,10 @@
       </div>
       <div class="ut-progress" id="docProgressWrap" hidden>
         <div class="ut-progress__bar" id="docProgressBar"></div>
-        <div class="ut-progress__row" id="docProgressText"></div>
+        <div class="ut-progress__row">
+          <span class="ut-progress__text" id="docProgressText"></span>
+          <button class="ut-btn ut-btn--ghost" id="docStopBtn" type="button" hidden>停止</button>
+        </div>
       </div>
     </div>
   </section>
@@ -117,12 +122,18 @@
         </div>
       </div>
       <div class="ut-stage-head">
-        <h2 class="ut-stage-title" id="scanTitle">扫描文本文件</h2>
-        <div class="ut-stage-actions">
+        <div class="ut-stage-head__left">
           <button class="ut-btn ut-btn--ghost" id="backToImportBtn" type="button">
             <svg class="icon icon--sm" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
             返回
           </button>
+          <h2 class="ut-stage-title" id="scanTitle">扫描文本文件</h2>
+        </div>
+        <div class="ut-stage-actions">
+          <label class="ut-check"><input type="checkbox" id="checkAll" checked> 全选</label>
+          <button class="ut-btn ut-btn--primary" id="startTranslateBtn" type="button" disabled>提取并翻译</button>
+        </div>
+      </div>
           <label class="ut-check"><input type="checkbox" id="checkAll" checked> 全选</label>
           <button class="ut-btn ut-btn--primary" id="startTranslateBtn" type="button" disabled>提取并翻译</button>
         </div>

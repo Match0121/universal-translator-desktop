@@ -546,19 +546,63 @@ $('#docTranslateBtn').addEventListener('click', async () => {
     docRenderTree();
     docRenderContent();
     $('#docExportBtn').disabled = !units.length;
-    $('#docProgressBar').style.width = '0%';
-    $('#docProgressText').textContent = `共 ${units.length} 个文本单元，开始翻译…`;
-    await translateUnits(units, store.state.settings, (done, total) => {
-      $('#docProgressBar').style.width = (total ? done / total * 100 : 0) + '%';
-      $('#docProgressText').textContent = `翻译中 ${done}/${total}`;
-    });
-    $('#docProgressWrap').hidden = true;
-    docRenderContent();
-    $('#docExportBtn').disabled = !units.some(u => u.translated);
+    if (units.length) await docTranslateUnits();
   } catch (e) {
     alert('处理失败：' + e.message);
   } finally {
     btn.disabled = false;
+  }
+});
+
+let docStopRef = null;
+
+/** 翻译文档单元；支持停止/继续，进度与游戏翻译一致 */
+async function docTranslateUnits() {
+  const units = docState.units;
+  const todo = units.filter(u => !u.translated);
+  const stopBtn = $('#docStopBtn');
+  const wrap = $('#docProgressWrap');
+  if (!todo.length) { wrap.hidden = true; stopBtn.hidden = true; docRenderContent(); return; }
+  docStopRef = { stopped: false };
+  stopBtn.textContent = '停止';
+  stopBtn.disabled = false;
+  stopBtn.hidden = false;
+  wrap.hidden = false;
+  $('#docProgressBar').style.width = '0%';
+  $('#docProgressText').textContent = `0 / ${todo.length}（0%）`;
+  try {
+    await translateUnits(todo, store.state.settings, (d, t, f) => {
+      const p = t ? Math.round(d / t * 100) : 100;
+      $('#docProgressBar').style.width = p + '%';
+      $('#docProgressText').textContent = `${d} / ${t}${f ? ` · 失败 ${f}` : ''}（${p}%）`;
+    }, docStopRef);
+  } catch (e) {
+    alert('翻译中止：' + e.message);
+  } finally {
+    const remaining = units.filter(u => !u.translated).length;
+    if (remaining > 0) {
+      const doneCount = units.length - remaining;
+      $('#docProgressBar').style.width = Math.round(doneCount / units.length * 100) + '%';
+      $('#docProgressText').textContent = `已停止：完成 ${doneCount} / 共 ${units.length}，剩余 ${remaining} 条`;
+      stopBtn.textContent = '继续翻译';
+      stopBtn.disabled = false;
+      stopBtn.hidden = false;
+    } else {
+      wrap.hidden = true;
+      stopBtn.hidden = true;
+    }
+    docRenderContent();
+    $('#docExportBtn').disabled = !units.some(u => u.translated);
+  }
+}
+
+$('#docStopBtn').addEventListener('click', () => {
+  if (docStopRef && !docStopRef.stopped) {
+    docStopRef.stopped = true;
+    $('#docStopBtn').disabled = true;
+    $('#docProgressText').textContent = '正在停止，等待当前请求完成…';
+  } else {
+    docTranslateUnits();
   }
 });
 
