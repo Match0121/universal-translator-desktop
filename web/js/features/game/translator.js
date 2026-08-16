@@ -208,7 +208,12 @@ async function viaProxy(provider, texts, cfg) {
 
 export { PROVIDERS };
 
-/* ---------------- IndexedDB 缓存 ---------------- */
+/* ---------------- IndexedDB 缓存 ----------------
+ * 值格式：{ t: 译文, ts: 写入时间戳 }（兼容旧版纯字符串值）
+ * 上限：超过 MAX_CACHE_ITEMS 条时自动删除最早的（LRU 裁剪） */
+
+const MAX_CACHE_ITEMS = 20000;
+const TRIM_TO = 15000;
 
 let _db = null;
 function openDb() {
@@ -220,25 +225,82 @@ function openDb() {
     req.onerror = () => reject(req.error);
   });
 }
+
+function cacheValue(v) {
+  if (!v) return '';
+  return typeof v === 'string' ? v : (v.t || '');
+}
+
 async function cacheGet(k) {
   try {
     const db = await openDb();
     return await new Promise((res, rej) => {
       const r = db.transaction('kv').objectStore('kv').get(k);
-      r.onsuccess = () => res(r.result || '');
+      r.onsuccess = () => res(cacheValue(r.result));
       r.onerror = () => rej(r.error);
     });
   } catch { return ''; }
 }
+
 async function cacheSet(k, v) {
   try {
     const db = await openDb();
     await new Promise((res, rej) => {
-      const r = db.transaction('kv', 'readwrite').objectStore('kv').put(v, k);
-      r.onsuccess = res;
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ t: v, ts: Date.now() }, k);
+      tx.oncomplete = res;
+      tx.onerror = () => rej(tx.error);
+    });
+    void trimIfNeeded(db);
+  } catch { /* ignore */ }
+}
+
+/** 超出上限时删除最早的条目（LRU） */
+async function trimIfNeeded(db) {
+  try {
+    const count = await new Promise((res, rej) => {
+      const r = db.transaction('kv').objectStore('kv').count();
+      r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
     });
+    if (count <= MAX_CACHE_ITEMS) return;
+    const toDelete = count - TRIM_TO;
+    await new Promise((res, rej) => {
+      const entries = [];
+      const tx = db.transaction('kv', 'readonly');
+      const cur = tx.objectStore('kv').openCursor();
+      cur.onsuccess = () => {
+        const c = cur.result;
+        if (c) {
+          entries.push({ key: c.key, ts: (c.value && c.value.ts) || 0 });
+          c.continue();
+        }
+      };
+      tx.oncomplete = () => {
+        entries.sort((a, b) => a.ts - b.ts);
+        const del = entries.slice(0, toDelete);
+        const tx2 = db.transaction('kv', 'readwrite');
+        const st2 = tx2.objectStore('kv');
+        del.forEach(d => st2.delete(d.key));
+        tx2.oncomplete = res;
+        tx2.onerror = () => rej(tx2.error);
+      };
+    });
   } catch { /* ignore */ }
+}
+
+/** 清空翻译缓存（设置界面按钮调用） */
+export async function clearCache() {
+  try {
+    const db = await openDb();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').clear();
+      tx.oncomplete = res;
+      tx.onerror = () => rej(tx.error);
+    });
+    return true;
+  } catch { return false; }
 }
 
 /* ---------------- 译文有效性校验 ---------------- */

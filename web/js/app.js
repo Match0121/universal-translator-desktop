@@ -6,7 +6,7 @@ import { parseExe } from './features/game/exeParser.js';
 import { pickGameFolder, scanFolder } from './features/game/dirScanner.js';
 import { extractFile, TEXT_EXT } from './features/game/extractors.js';
 import { readText } from './features/game/encoding.js';
-import { translateUnits } from './features/game/translator.js';
+import { translateUnits, clearCache } from './features/game/translator.js';
 import { renderFileList, renderFileTree, renderFileContent, showProgress, hideProgress } from './features/game/bilingView.js';
 import { exportZip, exportXp3 } from './features/game/exporter.js';
 import { detectDocType, extractDoc, rebuildDoc, docText, DOC_EXT } from './features/doc/docParser.js';
@@ -657,6 +657,17 @@ $('#docExportBtn').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
   }
+});
+
+$('#clearCacheBtn').addEventListener('click', async () => {
+  const btn = $('#clearCacheBtn');
+  btn.disabled = true;
+  const ok = await clearCache();
+  btn.disabled = false;
+  const st = $('#cacheStatus');
+  st.textContent = ok ? '✓ 已清除' : '清除失败';
+  st.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+  setTimeout(() => { st.textContent = ''; }, 2500);
 });
 
 /* ---------------- 设置抽屉 ---------------- */
