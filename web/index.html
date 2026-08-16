@@ -44,6 +44,7 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/></svg>
           </div>
           <p class="ut-dropzone__title">拖入文档，或点击选择</p>
+          <p class="ut-dropzone__hint">自动提取文本并识别格式，全程只需一步</p>
           <p class="ut-dropzone__hint">支持 Word / Excel / PPT / EPUB / HTML / Markdown / TXT</p>
         </div>
       </div>
@@ -95,12 +96,14 @@
     <!-- 阶段 1：选择文件夹（一步到位） -->
     <div class="ut-stage" id="stage-import">
       <div class="ut-dropzone" id="gameDropzone" tabindex="0" role="button">
-        <div class="ut-dropzone__icon">
-          <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        <div class="ut-dropzone__inner">
+          <div class="ut-dropzone__icon">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+          </div>
+          <p class="ut-dropzone__title">拖入游戏文件夹，或点击选择</p>
+          <p class="ut-dropzone__hint">自动扫描文本并识别引擎，全程只需一步</p>
+          <p class="ut-dropzone__hint" id="engineStatus"></p>
         </div>
-        <p class="ut-dropzone__title">拖入游戏文件夹，或点击选择</p>
-        <p class="ut-dropzone__hint">自动扫描游戏文本并识别引擎，全程只需一步</p>
-        <p class="ut-dropzone__hint" id="engineStatus"></p>
       </div>
     </div>
 
