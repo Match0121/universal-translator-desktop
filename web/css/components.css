@@ -640,7 +640,8 @@ body[data-theme="dark"]  .ico-moon { display: none; }
 }
 .ut-file-node.is-active .ut-file-node__count { color: var(--muted); }
 
-/* 右：单元列表（原文（译文）完整文件视图）——保持原样，不加卡片框 */
+/* 右：单元列表（原文（译文）完整文件视图）——保持原样，不加卡片框；
+   底部 padding 归零，让 pre 卡片底边与文件树卡片底边严格对齐 */
 .ut-unit-list {
   flex: 1;
   min-width: 0;
@@ -648,7 +649,7 @@ body[data-theme="dark"]  .ico-moon { display: none; }
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: 2px 4px var(--space-5);
+  padding: 2px 4px 0;
 }
 
 /* 翻译单元卡片（保留 class；当前渲染走 .ut-file-content） */

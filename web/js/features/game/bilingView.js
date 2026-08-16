@@ -74,7 +74,9 @@ export function showProgress(done, total, failed = 0) {
   if (!wrap) return;
   wrap.hidden = false;
   const pct = total ? Math.round(done / total * 100) : 100;
-  $('#progressBar').style.width = pct + '%';
+  // 填充条 absolute left:24px，宽度按轨道可视宽（容器宽 - 左右 24px）算像素，避免超出右边界
+  const track = Math.max(0, wrap.clientWidth - 48);
+  $('#progressBar').style.width = Math.round(track * pct / 100) + 'px';
   $('#progressText').textContent = `${done} / ${total}${failed ? ` · 失败 ${failed}` : ''}（${pct}%）`;
 }
 

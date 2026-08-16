@@ -327,7 +327,8 @@ async function runTranslation() {
     } else {
       // 翻译完成：保留进度条显示完成状态（不隐藏）
       const failed = units.filter(u => u.error).length;
-      $('#progressBar').style.width = '100%';
+      const track = Math.max(0, $('#progressWrap').clientWidth - 48);
+      $('#progressBar').style.width = track + 'px';
       $('#progressText').textContent = failed > 0
         ? `完成 ${units.length} / ${units.length} · 失败 ${failed}（100%）`
         : `完成 ${units.length} / ${units.length}（100%）`;
@@ -573,12 +574,13 @@ async function docTranslateUnits() {
   stopBtn.disabled = false;
   stopBtn.hidden = false;
   wrap.hidden = false;
-  $('#docProgressBar').style.width = '0%';
+  const docTrack = () => Math.max(0, wrap.clientWidth - 48);
+  $('#docProgressBar').style.width = '0px';
   $('#docProgressText').textContent = `0 / ${todo.length}（0%）`;
   try {
     await translateUnits(todo, store.state.settings, (d, t, f) => {
       const p = t ? Math.round(d / t * 100) : 100;
-      $('#docProgressBar').style.width = p + '%';
+      $('#docProgressBar').style.width = Math.round(docTrack() * p / 100) + 'px';
       $('#docProgressText').textContent = `${d} / ${t}${f ? ` · 失败 ${f}` : ''}（${p}%）`;
     }, docStopRef);
   } catch (e) {
@@ -587,7 +589,7 @@ async function docTranslateUnits() {
     const remaining = units.filter(u => !u.translated).length;
     if (remaining > 0) {
       const doneCount = units.length - remaining;
-      $('#docProgressBar').style.width = Math.round(doneCount / units.length * 100) + '%';
+      $('#docProgressBar').style.width = Math.round(docTrack() * doneCount / units.length) + 'px';
       $('#docProgressText').textContent = `已停止：完成 ${doneCount} / 共 ${units.length}，剩余 ${remaining} 条`;
       stopBtn.textContent = '继续翻译';
       stopBtn.disabled = false;
@@ -595,7 +597,7 @@ async function docTranslateUnits() {
     } else {
       // 翻译完成：保留进度条显示完成状态（不隐藏）
       const failed = units.filter(u => u.error).length;
-      $('#docProgressBar').style.width = '100%';
+      $('#docProgressBar').style.width = docTrack() + 'px';
       $('#docProgressText').textContent = failed > 0
         ? `完成 ${units.length} / ${units.length} · 失败 ${failed}（100%）`
         : `完成 ${units.length} / ${units.length}（100%）`;
