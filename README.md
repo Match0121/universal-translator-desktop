@@ -71,6 +71,13 @@ python desktop.py
 
 ## 更新日志
 
+### v1.2.0 (2026-08-17)
+- **新增文档翻译**：Word（.docx）/ Excel（.xlsx）/ PPT（.pptx）/ EPUB / HTML / Markdown / TXT，拖入即译，保留原格式导出
+- **翻译缓存管理**：2 万条自动上限（LRU 裁剪）+ 设置里一键清除
+- **中文行自动跳过**：已是中文的内容不再送译，消除虚假失败计数
+- **UI 打磨**：游戏/文档拖拽框统一（结构与文案）、翻译完成保留进度条、返回按钮统一左上角、双栏严格对齐、进度条像素宽度不溢出
+- **JSZip 本地化**：离线环境也能正常导出
+
 ### v1.1.1 (2026-08-14)
 - 使用说明补充「支持翻译的文件」范围清单
 
@@ -162,6 +169,13 @@ Falls back to the system browser automatically if the embedded window is unavail
 Build: run `build.bat`; output goes to `dist\UniversalTranslator.exe`.
 
 ## Changelog
+
+### v1.2.0 (2026-08-17)
+- **Document translation added**: Word (.docx) / Excel (.xlsx) / PPT (.pptx) / EPUB / HTML / Markdown / TXT — drag in and translate, export keeps the original format
+- **Translation cache management**: 20k-entry auto cap (LRU trim) + one-click clear in Settings
+- **Chinese lines auto-skipped**: no more bogus failure counts
+- **UI polish**: unified drop zones, progress bar keeps completion state, back buttons top-left, strict two-pane alignment
+- **JSZip local**: export works offline
 
 ### v1.1.1 (2026-08-14)
 - Help section now lists the full supported-file scope
