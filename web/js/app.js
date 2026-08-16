@@ -79,10 +79,11 @@ function refreshEngineStatus() {
   const info = ENGINE_INFO[s.provider] || ENGINE_INFO.mymemory;
   const configured = info.need ? info.need() : true;
   const es = $('#engineStatus');
-  if (es) {
-    es.textContent = `翻译引擎：${info.name}${configured ? ' · 已配置 ✓' : ' · 待配置（右上角 ⚙ 设置）'}`;
-    es.style.color = configured ? 'var(--ok)' : 'var(--warn)';
-  }
+  const des = $('#docEngineStatus');
+  const text = `翻译引擎：${info.name}${configured ? ' · 已配置 ✓' : ' · 待配置（右上角 ⚙ 设置）'}`;
+  const color = configured ? 'var(--ok)' : 'var(--warn)';
+  if (es) { es.textContent = text; es.style.color = color; }
+  if (des) { des.textContent = text; des.style.color = color; }
   const ps = $('#providerStatus');
   if (ps) {
     ps.textContent = info.need
