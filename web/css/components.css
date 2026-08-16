@@ -161,8 +161,10 @@ body[data-theme="dark"]  .ico-moon { display: none; }
   overflow-y: auto; /* 每个工作台独立滚动，顶栏纹丝不动 */
   padding: var(--space-5) var(--space-5) var(--space-7);
 }
-/* 游戏工作台是"三段纵向流"，内边距交给各 stage 自理 */
+/* 游戏工作台是“三段纵向流”，内边距交给各 stage 自理 */
 #ws-game { padding: 0; }
+/* 文档工作台同样统一：内边距交给各 stage 自理，保证拖拽框与顶栏间距一致 */
+#ws-document { padding: 0; }
 
 /* ================= 空态 ================= */
 .ut-empty {
