@@ -471,7 +471,7 @@ async function docAddFiles(flist) {
     if (!detectDocType(f.name)) continue;
     files.push({ name: f.name, file: f, size: f.size, type: detectDocType(f.name), unitCount: 0 });
   }
-  if (!files.length) { alert('不支持的文档格式（支持 md / txt / html / docx / epub）'); return; }
+  if (!files.length) { alert('不支持的文档格式（支持 md / txt / html / docx / epub / xlsx / pptx）'); return; }
   docState.files = files;
   docState.units = [];
   docRenderList();
@@ -524,7 +524,7 @@ docDz.addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
-  input.accept = '.md,.txt,.html,.htm,.docx,.epub';
+  input.accept = '.md,.txt,.html,.htm,.docx,.epub,.xlsx,.pptx';
   input.onchange = async () => { if (input.files && input.files.length) await docAddFiles(Array.from(input.files)); };
   input.click();
 });

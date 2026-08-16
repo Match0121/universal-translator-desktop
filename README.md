@@ -30,8 +30,8 @@
 | --- | --- |
 | 文本文件翻译（txt/json/ini/srt/ass 等） | ✅ 已实现 |
 | 游戏翻译（引擎识别 + rpy/ks 剧本 + xp3 解包封包） | ✅ 已实现 |
-| 文档翻译（md/txt/html + docx + epub） | ✅ 已实现 |
-| 文档翻译（PDF / xlsx / pptx） | 🔜 规划中 |
+| 文档翻译（md/txt/html + docx/epub/xlsx/pptx） | ✅ 已实现 |
+| 文档翻译（PDF） | 🔜 规划中 |
 | 图片翻译（图片文字识别与替换） | 🔜 规划中 |
 
 ## 下载与使用
@@ -122,8 +122,8 @@ Review per-file translations, original vs translated side by side:
 | --- | --- |
 | Text file translation (txt/json/ini/srt/ass etc.) | ✅ Done |
 | Game translation (engine detection + rpy/ks scripts + xp3 unpack/repack) | ✅ Done |
-| Document translation (md/txt/html + docx + epub) | ✅ Done |
-| Document translation (PDF / xlsx / pptx) | 🔜 Planned |
+| Document translation (md/txt/html + docx/epub/xlsx/pptx) | ✅ Done |
+| Document translation (PDF) | 🔜 Planned |
 | Image translation (OCR + text replacement) | 🔜 Planned |
 
 ## Download & Usage

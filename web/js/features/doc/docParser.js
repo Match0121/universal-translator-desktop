@@ -11,14 +11,18 @@
 
 import { readText } from '../game/encoding.js';
 
-export const DOC_EXT = new Set(['md', 'txt', 'html', 'htm', 'docx', 'epub']);
+export const DOC_EXT = new Set(['md', 'txt', 'html', 'htm', 'docx', 'epub', 'xlsx', 'pptx']);
 const DOCX_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const SPREADSHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
 export function detectDocType(fileName) {
   const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
   if (ext === 'docx') return 'docx';
   if (ext === 'epub') return 'epub';
   if (ext === 'html' || ext === 'htm') return 'html';
+  if (ext === 'xlsx') return 'xlsx';
+  if (ext === 'pptx') return 'pptx';
   if (ext === 'md' || ext === 'txt') return 'plain';
   return null;
 }
@@ -217,6 +221,151 @@ function rebuildEpub(meta, units, mode) {
   return { zipEntries: newXmls };
 }
 
+/* ---------------- XLSX（ZIP + sharedStrings / sheet XML） ---------------- */
+
+function siText(si, ns) {
+  // <si> 聚合所有 <t> 的文本（含富文本 run）
+  const ts = si.getElementsByTagNameNS(ns, 't');
+  let s = '';
+  for (const t of ts) s += t.textContent || '';
+  return s.trim();
+}
+
+async function extractXlsx(file, fileName) {
+  const zip = await loadZip(file);
+  const units = [];
+  let seq = 0;
+  // 1) sharedStrings.xml
+  const ssEntry = zip.file('xl/sharedStrings.xml');
+  if (ssEntry) {
+    const xml = await ssEntry.async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const sis = Array.from(dom.getElementsByTagNameNS(SPREADSHEET_NS, 'si'));
+    sis.forEach((si, idx) => {
+      const original = siText(si, SPREADSHEET_NS);
+      if (!isTranslateableDoc(original)) return;
+      units.push({ file: fileName, seq: seq++, original, raw: { kind: 'shared', idx }, translated: '', error: '', ex: 'xlsx', docType: 'xlsx' });
+    });
+  }
+  // 2) 各 sheet 的 inline strings（<c t="inlineStr"><is><t>…</t></is></c>）
+  const sheetNames = Object.keys(zip.files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+  for (const name of sheetNames) {
+    const xml = await zip.file(name).async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const isNodes = dom.getElementsByTagNameNS(SPREADSHEET_NS, 'is');
+    let inSeq = 0;
+    for (const isNode of isNodes) {
+      const tNode = isNode.getElementsByTagNameNS(SPREADSHEET_NS, 't')[0];
+      if (!tNode) continue;
+      const original = (tNode.textContent || '').trim();
+      if (!isTranslateableDoc(original)) continue;
+      units.push({ file: fileName, seq: seq++, original, raw: { kind: 'inline', sheet: name, inSeq: inSeq++ }, translated: '', error: '', ex: 'xlsx', docType: 'xlsx' });
+    }
+  }
+  return { units, meta: {} };
+}
+
+async function rebuildXlsx(file, units, mode) {
+  const zip = await loadZip(file);
+  // sharedStrings
+  const ssEntry = zip.file('xl/sharedStrings.xml');
+  if (ssEntry) {
+    const xml = await ssEntry.async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const sis = Array.from(dom.getElementsByTagNameNS(SPREADSHEET_NS, 'si'));
+    const byIdx = new Map(units.filter(u => u.raw.kind === 'shared').map(u => [u.raw.idx, u]));
+    sis.forEach((si, idx) => {
+      const u = byIdx.get(idx);
+      if (!u) return;
+      const tNodes = si.getElementsByTagNameNS(SPREADSHEET_NS, 't');
+      if (!tNodes.length) return;
+      tNodes[0].textContent = unitText(u, mode);
+      for (let i = 1; i < tNodes.length; i++) tNodes[i].textContent = '';
+    });
+    zip.file('xl/sharedStrings.xml', new XMLSerializer().serializeToString(dom));
+  }
+  // inline strings
+  const bySheet = new Map();
+  for (const u of units.filter(u => u.raw.kind === 'inline')) {
+    if (!bySheet.has(u.raw.sheet)) bySheet.set(u.raw.sheet, []);
+    bySheet.get(u.raw.sheet).push(u);
+  }
+  for (const [sheet, sus] of bySheet) {
+    const xml = await zip.file(sheet).async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const isNodes = dom.getElementsByTagNameNS(SPREADSHEET_NS, 'is');
+    let inSeq = 0;
+    const byInSeq = new Map(sus.map(u => [u.raw.inSeq, u]));
+    for (const isNode of isNodes) {
+      const tNode = isNode.getElementsByTagNameNS(SPREADSHEET_NS, 't')[0];
+      if (!tNode) continue;
+      const original = (tNode.textContent || '').trim();
+      if (!isTranslateableDoc(original)) continue;
+      const u = byInSeq.get(inSeq++);
+      if (u) tNode.textContent = unitText(u, mode);
+    }
+    zip.file(sheet, new XMLSerializer().serializeToString(dom));
+  }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  return { blob };
+}
+
+/* ---------------- PPTX（ZIP + slides XML 的 a:t 文本） ---------------- */
+
+function slideParaText(p, ns) {
+  const ts = p.getElementsByTagNameNS(ns, 't');
+  let s = '';
+  for (const t of ts) s += t.textContent || '';
+  return s.trim();
+}
+
+async function extractPptx(file, fileName) {
+  const zip = await loadZip(file);
+  const units = [];
+  const slideNames = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+  let seq = 0;
+  for (const name of slideNames) {
+    const xml = await zip.file(name).async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const paras = dom.getElementsByTagNameNS(DRAWING_NS, 'p');
+    for (const p of paras) {
+      const original = slideParaText(p, DRAWING_NS);
+      if (!isTranslateableDoc(original)) continue;
+      units.push({ file: fileName, seq: seq++, original, raw: { slide: name }, translated: '', error: '', ex: 'pptx', docType: 'pptx' });
+    }
+  }
+  return { units, meta: {} };
+}
+
+async function rebuildPptx(file, units, mode) {
+  const zip = await loadZip(file);
+  const bySlide = new Map();
+  units.forEach((u, i) => {
+    if (!bySlide.has(u.raw.slide)) bySlide.set(u.raw.slide, []);
+    bySlide.get(u.raw.slide).push(u);
+  });
+  for (const [slide, sus] of bySlide) {
+    const xml = await zip.file(slide).async('string');
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    const paras = dom.getElementsByTagNameNS(DRAWING_NS, 'p');
+    let seq = 0;
+    const bySeq = new Map(sus.map(u => [u.seq, u]));
+    for (const p of paras) {
+      const original = slideParaText(p, DRAWING_NS);
+      if (!isTranslateableDoc(original)) continue;
+      const u = bySeq.get(seq++);
+      if (!u) continue;
+      const tNodes = p.getElementsByTagNameNS(DRAWING_NS, 't');
+      if (!tNodes.length) continue;
+      tNodes[0].textContent = unitText(u, mode);
+      for (let i = 1; i < tNodes.length; i++) tNodes[i].textContent = '';
+    }
+    zip.file(slide, new XMLSerializer().serializeToString(dom));
+  }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  return { blob };
+}
+
 /* ---------------- 统一入口 ---------------- */
 
 export async function extractDoc(file, fileName) {
@@ -226,6 +375,8 @@ export async function extractDoc(file, fileName) {
     case 'html': return extractHtmlFile(file, fileName);
     case 'docx': return extractDocx(file, fileName);
     case 'epub': return extractEpub(file, fileName);
+    case 'xlsx': return extractXlsx(file, fileName);
+    case 'pptx': return extractPptx(file, fileName);
     default: throw new Error('不支持的文档格式：' + fileName);
   }
 }
@@ -265,6 +416,8 @@ export async function rebuildDoc(file, fileName, units, mode) {
       const blob = await zip.generateAsync({ type: 'blob' });
       return { blob };
     }
+    case 'xlsx': return rebuildXlsx(file, units, mode);
+    case 'pptx': return rebuildPptx(file, units, mode);
     default: throw new Error('不支持的文档格式：' + fileName);
   }
 }
