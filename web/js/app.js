@@ -325,7 +325,12 @@ async function runTranslation() {
       stopBtn.disabled = false;
       stopBtn.hidden = false;
     } else {
-      hideProgress();
+      // 翻译完成：保留进度条显示完成状态（不隐藏）
+      const failed = units.filter(u => u.error).length;
+      $('#progressBar').style.width = '100%';
+      $('#progressText').textContent = failed > 0
+        ? `完成 ${units.length} / ${units.length} · 失败 ${failed}（100%）`
+        : `完成 ${units.length} / ${units.length}（100%）`;
       stopBtn.hidden = true;
     }
     renderFileTree(store.state.files, units);
@@ -588,7 +593,12 @@ async function docTranslateUnits() {
       stopBtn.disabled = false;
       stopBtn.hidden = false;
     } else {
-      wrap.hidden = true;
+      // 翻译完成：保留进度条显示完成状态（不隐藏）
+      const failed = units.filter(u => u.error).length;
+      $('#docProgressBar').style.width = '100%';
+      $('#docProgressText').textContent = failed > 0
+        ? `完成 ${units.length} / ${units.length} · 失败 ${failed}（100%）`
+        : `完成 ${units.length} / ${units.length}（100%）`;
       stopBtn.hidden = true;
     }
     docRenderContent();
