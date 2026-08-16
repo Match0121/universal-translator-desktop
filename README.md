@@ -2,7 +2,13 @@
 
 **万能文本翻译工具（Windows 桌面版）**：不用在文件管理器与多种翻译软件之间挣扎，将你的文件拖入框内——不管是文件、游戏还是图片，**识别 → 提取 → 翻译 → 替换**，一个平台解决所有烦恼。
 
+![导入界面](docs/assets/screenshot-import.png)
+
+拖入游戏文件夹，自动扫描文本并识别引擎：
+
 ![扫描界面](docs/assets/screenshot-scan.png)
+
+按文件查看翻译结果，原文 / 译文对照：
 
 ![翻译浏览界面](docs/assets/screenshot-browse.png)
 

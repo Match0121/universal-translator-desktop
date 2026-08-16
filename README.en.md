@@ -2,7 +2,13 @@
 
 **A universal text translation tool for Windows desktop**: stop juggling between file managers and multiple translation apps. Just drag your files into the box — documents, games, or images — **detect → extract → translate → replace**, all in one place.
 
+![Import screen](docs/assets/screenshot-import.png)
+
+Drag in a game folder; text files are scanned and the engine auto-detected:
+
 ![Scan screen](docs/assets/screenshot-scan.png)
+
+Review per-file translations, original vs translated side by side:
 
 ![Browse & translate screen](docs/assets/screenshot-browse.png)
 
