@@ -43,7 +43,8 @@ function showWorkspace(name) {
 }
 
 function showStage(name) {
-  $$('.ut-stage').forEach(s => { s.hidden = s.id !== 'stage-' + name; });
+  // 只操作游戏工作台内的 stage，避免误伤文档/图片工作台的同名 class
+  $$('#ws-game .ut-stage').forEach(s => { s.hidden = s.id !== 'stage-' + name; });
   store.set('stage', name);
 }
 
