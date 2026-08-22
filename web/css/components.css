@@ -805,6 +805,18 @@ body[data-view="bilingual"] .ut-unit__translated {
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* PDF 导出格式选择（工具栏内） */
+.ut-doc-pdf-fmt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ut-doc-pdf-fmt__label {
+  font-size: var(--text-sm);
+  color: var(--faint);
+  margin-right: var(--space-1);
+}
 .ut-progress__row .ut-progress__text {
   flex: 1;
 }

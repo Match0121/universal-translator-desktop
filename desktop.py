@@ -23,6 +23,7 @@ import uuid
 import webbrowser
 
 from unpack.xp3 import Xp3Error, pack_bytes, unpack_bytes
+from pdf import PdfError, extract_pdf, export_translated
 
 APP_NAME = 'Universal Translator'
 CANDIDATE_PORTS = (8123, 8000, 8124, 8125, 8130, 8888)
@@ -43,6 +44,23 @@ def clean_unpack_root():
     if UNPACK_ROOT and os.path.isdir(UNPACK_ROOT):
         shutil.rmtree(UNPACK_ROOT, ignore_errors=True)
         UNPACK_ROOT = None
+
+
+PDF_ROOT = None  # PDF 解析临时根目录（应用退出时清理）
+
+
+def ensure_pdf_root():
+    global PDF_ROOT
+    if PDF_ROOT is None:
+        PDF_ROOT = tempfile.mkdtemp(prefix='ut_pdf_')
+    return PDF_ROOT
+
+
+def clean_pdf_root():
+    global PDF_ROOT
+    if PDF_ROOT and os.path.isdir(PDF_ROOT):
+        shutil.rmtree(PDF_ROOT, ignore_errors=True)
+        PDF_ROOT = None
 
 
 def safe_join(base, rel):
@@ -137,6 +155,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._handle_unpack()
         elif self.path == '/api/pack':
             self._handle_pack()
+        elif self.path == '/api/pdf/extract':
+            self._handle_pdf_extract()
+        elif self.path == '/api/pdf/export':
+            self._handle_pdf_export()
         else:
             self.send_error(404, 'Not Found')
 
@@ -213,6 +235,53 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/octet-stream')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Content-Disposition', 'attachment; filename="translated.xp3"')
+            self.send_header('Content-Length', str(len(blob)))
+            self.end_headers()
+            self.wfile.write(blob)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_pdf_extract(self):
+        # 接收 PDF 字节 → 解析 → 存临时 → 返回文本型判定 + 段落
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length <= 0:
+                raise RuntimeError('未收到文件内容')
+            data = self.rfile.read(length)
+            result = extract_pdf(data)
+            temp_id = uuid.uuid4().hex[:8]
+            pdf_dir = os.path.join(ensure_pdf_root(), temp_id)
+            os.makedirs(pdf_dir, exist_ok=True)
+            with open(os.path.join(pdf_dir, 'source.pdf'), 'wb') as f:
+                f.write(data)
+            with open(os.path.join(pdf_dir, 'paras.json'), 'w', encoding='utf-8') as f:
+                json.dump(result['paragraphs'], f, ensure_ascii=False)
+            self._json({'ok': True, 'tempId': temp_id, **result})
+        except PdfError as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_pdf_export(self):
+        # 接收 {tempId, translated, fmt} → 读回 PDF+段落 → 生成译文文档返回
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8'))
+            temp_id = body.get('tempId') or ''
+            translated = body.get('translated') or []
+            fmt = body.get('fmt') or 'docx'
+            pdf_dir = os.path.join(ensure_pdf_root(), temp_id)
+            src = os.path.join(pdf_dir, 'source.pdf')
+            paras_path = os.path.join(pdf_dir, 'paras.json')
+            if not temp_id or not os.path.isfile(src) or not os.path.isfile(paras_path):
+                raise RuntimeError('PDF 会话不存在或已过期，请重新提取')
+            with open(paras_path, encoding='utf-8') as f:
+                original_paras = json.load(f)
+            blob, fname, mime = export_translated(original_paras, translated, fmt)
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Content-Disposition', 'attachment; filename="' + fname + '"')
             self.send_header('Content-Length', str(len(blob)))
             self.end_headers()
             self.wfile.write(blob)

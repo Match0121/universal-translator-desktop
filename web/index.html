@@ -44,7 +44,7 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/></svg>
           </div>
           <p class="ut-dropzone__title">拖入文档，或点击选择</p>
-          <p class="ut-dropzone__hint">支持 Word / Excel / PPT / EPUB / HTML / Markdown / TXT</p>
+          <p class="ut-dropzone__hint">支持 Word / Excel / PPT / PDF / EPUB / HTML / Markdown / TXT</p>
           <p class="ut-dropzone__hint" id="docEngineStatus"></p>
         </div>
       </div>
@@ -75,6 +75,12 @@
         </div>
         <div class="ut-toolbar__spacer"></div>
         <button class="ut-btn ut-btn--primary" id="docExportBtn" type="button">导出译文文档</button>
+        <div id="docPdfFmt" class="ut-doc-pdf-fmt" hidden>
+          <span class="ut-doc-pdf-fmt__label">PDF 导出为：</span>
+          <button class="ut-btn ut-btn--ghost" data-fmt="docx" type="button">Word</button>
+          <button class="ut-btn ut-btn--ghost" data-fmt="md" type="button">Markdown</button>
+          <button class="ut-btn ut-btn--ghost" data-fmt="pdf" type="button" title="用译文重新排版生成 PDF，排版与原版可能有差异">PDF（排版可能不一致）</button>
+        </div>
       </div>
       <div class="ut-browser">
         <aside class="ut-file-tree" id="docFileTree"></aside>

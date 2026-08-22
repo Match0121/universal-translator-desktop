@@ -11,7 +11,7 @@
 
 import { readText } from '../game/encoding.js';
 
-export const DOC_EXT = new Set(['md', 'txt', 'html', 'htm', 'docx', 'epub', 'xlsx', 'pptx']);
+export const DOC_EXT = new Set(['md', 'txt', 'html', 'htm', 'docx', 'epub', 'xlsx', 'pptx', 'pdf']);
 const DOCX_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const SPREADSHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
@@ -23,6 +23,7 @@ export function detectDocType(fileName) {
   if (ext === 'html' || ext === 'htm') return 'html';
   if (ext === 'xlsx') return 'xlsx';
   if (ext === 'pptx') return 'pptx';
+  if (ext === 'pdf') return 'pdf';
   if (ext === 'md' || ext === 'txt') return 'plain';
   return null;
 }
@@ -366,6 +367,38 @@ async function rebuildPptx(file, units, mode) {
   return { blob };
 }
 
+/* ---------------- PDF（后端 pymupdf 解析，文本型） ---------------- */
+
+async function extractPdf(file, fileName) {
+  const res = await fetch('/api/pdf/extract', { method: 'POST', body: file });
+  const data = await res.json().catch(() => ({}));
+  if (!data || !data.ok) throw new Error((data && data.error) || 'PDF 解析失败（请确认文件有效）');
+  const units = (data.paragraphs || []).map((p, i) => ({
+    file: fileName, seq: i, original: p.original,
+    raw: { tempId: data.tempId, textType: data.text_type },
+    translated: '', error: '', ex: 'pdf', docType: 'pdf',
+  }));
+  return { units, meta: { tempId: data.tempId, textType: data.text_type, totalChars: data.total_chars, pageCount: data.page_count } };
+}
+
+/** PDF 导出：调后端生成 Word / Markdown / 重排 PDF */
+export async function exportPdfDoc(tempId, units, fmt) {
+  const translated = units.map(u => ({ seq: u.seq, translated: u.translated || u.original }));
+  const res = await fetch('/api/pdf/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tempId, translated, fmt }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error((d && d.error) || '导出失败');
+  }
+  const ct = res.headers.get('Content-Disposition') || '';
+  const m = ct.match(/filename="([^"]+)"/);
+  const blob = await res.blob();
+  return { blob, filename: m ? m[1] : 'translated.' + fmt };
+}
+
 /* ---------------- 统一入口 ---------------- */
 
 export async function extractDoc(file, fileName) {
@@ -377,6 +410,7 @@ export async function extractDoc(file, fileName) {
     case 'epub': return extractEpub(file, fileName);
     case 'xlsx': return extractXlsx(file, fileName);
     case 'pptx': return extractPptx(file, fileName);
+    case 'pdf': return extractPdf(file, fileName);
     default: throw new Error('不支持的文档格式：' + fileName);
   }
 }

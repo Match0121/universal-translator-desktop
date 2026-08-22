@@ -9,7 +9,7 @@ import { readText } from './features/game/encoding.js';
 import { translateUnits, clearCache } from './features/game/translator.js';
 import { renderFileList, renderFileTree, renderFileContent, showProgress, hideProgress } from './features/game/bilingView.js';
 import { exportZip, exportXp3 } from './features/game/exporter.js';
-import { detectDocType, extractDoc, rebuildDoc, docText, DOC_EXT } from './features/doc/docParser.js';
+import { detectDocType, extractDoc, rebuildDoc, docText, exportPdfDoc, DOC_EXT } from './features/doc/docParser.js';
 
 /* ---------------- 基础 ---------------- */
 
@@ -472,7 +472,7 @@ async function docAddFiles(flist) {
     if (!detectDocType(f.name)) continue;
     files.push({ name: f.name, file: f, size: f.size, type: detectDocType(f.name), unitCount: 0 });
   }
-  if (!files.length) { alert('不支持的文档格式（支持 md / txt / html / docx / epub / xlsx / pptx）'); return; }
+  if (!files.length) { alert('不支持的文档格式（支持 md / txt / html / docx / epub / xlsx / pptx / pdf）'); return; }
   docState.files = files;
   docState.units = [];
   docRenderList();
@@ -525,7 +525,7 @@ docDz.addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
-  input.accept = '.md,.txt,.html,.htm,.docx,.epub,.xlsx,.pptx';
+  input.accept = '.md,.txt,.html,.htm,.docx,.epub,.xlsx,.pptx,.pdf';
   input.onchange = async () => { if (input.files && input.files.length) await docAddFiles(Array.from(input.files)); };
   input.click();
 });
@@ -552,6 +552,7 @@ $('#docTranslateBtn').addEventListener('click', async () => {
     docState.activeFile = (docState.files[0] || {}).name;
     docRenderTree();
     docRenderContent();
+    docSyncExportUi();
     $('#docExportBtn').disabled = !units.length;
     if (units.length) await docTranslateUnits();
   } catch (e) {
@@ -635,12 +636,46 @@ $('#docViewSwitch').addEventListener('click', e => {
   docRenderContent();
 });
 
+function docPdfFiles() {
+  return docState.files.filter(f => detectDocType(f.name) === 'pdf');
+}
+
+/** 根据是否有 PDF 文件切换导出控件（普通导出 vs PDF 格式选择） */
+function docSyncExportUi() {
+  const hasPdf = docPdfFiles().length > 0;
+  $('#docExportBtn').hidden = hasPdf;
+  $('#docPdfFmt').hidden = !hasPdf;
+}
+
+$$('#docPdfFmt [data-fmt]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const fmt = btn.dataset.fmt;
+    btn.disabled = true;
+    try {
+      const pdfs = docPdfFiles();
+      if (!pdfs.length) return;
+      for (const f of pdfs) {
+        const us = docState.units.filter(u => u.file === f.name);
+        const tempId = (us[0] && us[0].raw.tempId) || '';
+        if (!tempId) continue;
+        const { blob, filename } = await exportPdfDoc(tempId, us, fmt);
+        downloadBlob(blob, filename);
+      }
+    } catch (e) {
+      alert('PDF 导出失败：' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
 $('#docExportBtn').addEventListener('click', async () => {
   const btn = $('#docExportBtn');
   btn.disabled = true;
   try {
     let exported = 0;
     for (const f of docState.files) {
+      if (detectDocType(f.name) === 'pdf') continue; // PDF 走 docPdfFmt 格式按钮
       const us = docState.units.filter(u => u.file === f.name);
       if (!us.length) continue;
       const rebuilt = await rebuildDoc(f.file, f.name, us, docState.view);
