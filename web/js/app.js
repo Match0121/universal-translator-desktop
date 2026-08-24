@@ -1,6 +1,6 @@
 // app.js — 入口：路由 + 游戏翻译全流程编排
 
-import { $, $$, debounce, extOf, fmtBytes, escapeHtml, downloadBlob } from './utils.js';
+import { $, $$, debounce, extOf, fmtBytes, escapeHtml, downloadBlob, saveBlobDialog, pickSaveFile, writeSaveHandle } from './utils.js';
 import { store } from './store.js';
 import { parseExe } from './features/game/exeParser.js';
 import { pickGameFolder, scanFolder } from './features/game/dirScanner.js';
@@ -10,10 +10,14 @@ import { translateUnits, clearCache } from './features/game/translator.js';
 import { renderFileList, renderFileTree, renderFileContent, showProgress, hideProgress } from './features/game/bilingView.js';
 import { exportZip, exportXp3 } from './features/game/exporter.js';
 import { detectDocType, extractDoc, rebuildDoc, docText, exportPdfDoc, DOC_EXT } from './features/doc/docParser.js';
+import { initImgWorkbench } from './features/img/imgWorkbench.js';
 
 /* ---------------- 基础 ---------------- */
 
 store.load();
+
+// 图片翻译工作台
+initImgWorkbench();
 
 // 诊断钩子：页面内显示运行时错误（排查用）
 window.__ut = { store, errs: [] };
@@ -40,6 +44,8 @@ function diagLog(tag) {
 function showWorkspace(name) {
   $$('.ut-workspace').forEach(ws => { ws.hidden = ws.id !== 'ws-' + name; });
   $$('.ut-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.ws === name));
+  // 切换工作台时刷新引擎状态（保证各拖拽框状态行均有内容且占位一致）
+  if (typeof refreshEngineStatus === 'function') refreshEngineStatus();
 }
 
 function showStage(name) {
@@ -80,10 +86,12 @@ function refreshEngineStatus() {
   const configured = info.need ? info.need() : true;
   const es = $('#engineStatus');
   const des = $('#docEngineStatus');
+  const ies = $('#imgEngineStatus');
   const text = `翻译引擎：${info.name}${configured ? ' · 已配置 ✓' : ' · 待配置（右上角 ⚙ 设置）'}`;
   const color = configured ? 'var(--ok)' : 'var(--warn)';
   if (es) { es.textContent = text; es.style.color = color; }
   if (des) { des.textContent = text; des.style.color = color; }
+  if (ies) { ies.textContent = text; ies.style.color = color; }
   const ps = $('#providerStatus');
   if (ps) {
     ps.textContent = info.need
@@ -544,7 +552,8 @@ $('#docTranslateBtn').addEventListener('click', async () => {
     for (let i = 0; i < docState.files.length; i++) {
       const f = docState.files[i];
       $('#docProgressText').textContent = `提取 ${i + 1}/${docState.files.length}：${f.name}`;
-      const { units: us } = await extractDoc(f.file, f.name);
+      const forceOcr = (($('#docPdfMode .ut-seg__item.is-active') || {}).dataset || {}).mode === 'ocr';
+      const { units: us } = await extractDoc(f.file, f.name, msg => { $('#docProgressText').textContent = msg; }, forceOcr);
       f.unitCount = us.length;
       units.push(...us);
     }
@@ -640,11 +649,44 @@ function docPdfFiles() {
   return docState.files.filter(f => detectDocType(f.name) === 'pdf');
 }
 
+/** 当前 PDF 文件的类型集合（text / image / empty） */
+function docPdfKinds() {
+  const kinds = new Set();
+  for (const f of docState.files) {
+    if (detectDocType(f.name) !== 'pdf') continue;
+    const us = docState.units.filter(u => u.file === f.name);
+    kinds.add((us[0] && us[0].raw.pdfKind) || 'text');
+  }
+  return kinds;
+}
+
 /** 根据是否有 PDF 文件切换导出控件（普通导出 vs PDF 格式选择） */
 function docSyncExportUi() {
   const hasPdf = docPdfFiles().length > 0;
   $('#docExportBtn').hidden = hasPdf;
   $('#docPdfFmt').hidden = !hasPdf;
+  const hint = $('#docPdfOcrHint');
+  if (hint) hint.hidden = true;
+  if (!hasPdf) return;
+  const kinds = docPdfKinds();
+  const hasText = kinds.has('text');
+  const hasImage = kinds.has('image');
+  const hasOcr = kinds.has('ocr');
+  const hasEmpty = kinds.has('empty');
+  // 导出格式按类型集合控制：PDF 所有类型都可用（原位嵌入），TXT 仅扫描/强制 OCR 可用
+  $$('#docPdfFmt [data-fmt]').forEach(btn => {
+    const fmt = btn.dataset.fmt;
+    btn.hidden = (fmt === 'txt' && !hasImage && !hasOcr);
+  });
+  if (hasImage && hint) {
+    hint.hidden = false;
+    hint.textContent = hasEmpty
+      ? '含扫描版 / 空白 PDF：扫描版已按图片方式嵌入译文（PDF 导出），空白版无内容可导'
+      : '含扫描版 PDF：已 OCR 提取文字，PDF 导出将按图片方式嵌入译文';
+  } else if (hasEmpty && hint) {
+    hint.hidden = false;
+    hint.textContent = '含空白 PDF：未识别到文字，无内容可导出';
+  }
 }
 
 $$('#docPdfFmt [data-fmt]').forEach(btn => {
@@ -654,12 +696,22 @@ $$('#docPdfFmt [data-fmt]').forEach(btn => {
     try {
       const pdfs = docPdfFiles();
       if (!pdfs.length) return;
+      // 单文件：点击瞬间先弹保存框拿句柄（showSaveFilePicker 需用户激活窗口内调用）
+      const single = pdfs.length === 1 ? await pickSaveFile('translated.' + fmt) : null;
       for (const f of pdfs) {
         const us = docState.units.filter(u => u.file === f.name);
+        const kind = (us[0] && us[0].raw.pdfKind) || 'text';
+        // 格式与类型匹配过滤：PDF 仅空白文档跳过，TXT 仅扫描/强制 OCR
+        if (fmt === 'pdf' && kind === 'empty') continue;
+        if (fmt === 'txt' && kind !== 'image' && kind !== 'ocr') continue;
+        if (!us.length) continue;
         const tempId = (us[0] && us[0].raw.tempId) || '';
         if (!tempId) continue;
         const { blob, filename } = await exportPdfDoc(tempId, us, fmt);
-        downloadBlob(blob, filename);
+        if (single && single.ok) await writeSaveHandle(single.handle, blob);
+        else if (single && !single.cancelled) downloadBlob(blob, filename);   // pick 不可用：回退下载
+        else if (single && single.cancelled) continue;                       // 用户取消
+        else downloadBlob(blob, filename);                                   // 多文件：直接下载
       }
     } catch (e) {
       alert('PDF 导出失败：' + e.message);
@@ -669,10 +721,20 @@ $$('#docPdfFmt [data-fmt]').forEach(btn => {
   });
 });
 
+// PDF 提取方式切换（文字层 / 图片 OCR）
+$('#docPdfMode').addEventListener('click', e => {
+  const b = e.target.closest('.ut-seg__item');
+  if (!b) return;
+  $$('#docPdfMode .ut-seg__item').forEach(x => x.classList.toggle('is-active', x === b));
+});
+
 $('#docExportBtn').addEventListener('click', async () => {
   const btn = $('#docExportBtn');
   btn.disabled = true;
   try {
+    // 单文件：点击瞬间先弹保存框拿句柄
+    const files = docState.files;
+    const single = files.length === 1 ? await pickSaveFile('translated' + (files[0] ? files[0].name.slice(files[0].name.lastIndexOf('.')) : '.txt')) : null;
     let exported = 0;
     for (const f of docState.files) {
       if (detectDocType(f.name) === 'pdf') continue; // PDF 走 docPdfFmt 格式按钮
@@ -684,7 +746,11 @@ $('#docExportBtn').addEventListener('click', async () => {
       if (!blob) continue;
       const dot = f.name.lastIndexOf('.');
       const base = dot > 0 ? f.name.slice(0, dot) : f.name;
-      downloadBlob(blob, base + '_译文' + f.name.slice(dot));
+      const outName = base + '_译文' + f.name.slice(dot);
+      if (single && single.ok) await writeSaveHandle(single.handle, blob);
+      else if (single && !single.cancelled) downloadBlob(blob, outName);
+      else if (single && single.cancelled) continue;
+      else downloadBlob(blob, outName);
       exported++;
     }
     if (!exported) alert('没有可导出的内容');

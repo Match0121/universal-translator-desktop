@@ -165,6 +165,8 @@ body[data-theme="dark"]  .ico-moon { display: none; }
 #ws-game { padding: 0; }
 /* 文档工作台同样统一：内边距交给各 stage 自理，保证拖拽框与顶栏间距一致 */
 #ws-document { padding: 0; }
+/* 图片工作台同规则，三工作台拖拽框位置完全一致 */
+#ws-image { padding: 0; }
 
 /* ================= 空态 ================= */
 .ut-empty {
@@ -247,6 +249,8 @@ body[data-theme="dark"]  .ico-moon { display: none; }
   justify-content: center;
   gap: var(--space-1);
   padding: var(--space-7) var(--space-5) var(--space-8);
+  height: 280px;              /* 三个工作台拖拽框固定等高，切换不跳动 */
+  min-height: 280px;
   background: var(--bg-card);
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius-l);
@@ -304,7 +308,14 @@ body[data-theme="dark"]  .ico-moon { display: none; }
 .ut-dropzone__icon .icon { width: 22px; height: 22px; }
 .ut-dropzone:hover .ut-dropzone__icon { color: var(--accent); }
 .ut-dropzone__title { font-size: var(--text-lg); font-weight: var(--fw-semibold); letter-spacing: -.01em; }
-.ut-dropzone__hint { font-size: var(--text-sm); color: var(--faint); }
+.ut-dropzone__hint {
+  font-size: var(--text-sm);
+  color: var(--faint);
+  white-space: nowrap;        /* 提示单行，窄窗口不换行撑高（三框等高） */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ================= 游戏卡片 ================= */
 .ut-game-card {
@@ -817,6 +828,54 @@ body[data-view="bilingual"] .ut-unit__translated {
   color: var(--faint);
   margin-right: var(--space-1);
 }
+/* PDF 提取方式行（文件列表上方） */
+.ut-scan-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ut-doc-pdfmode-hint {
+  font-size: var(--text-sm);
+  color: var(--faint);
+}
+.ut-doc-pdfmode-tip {
+  font-size: var(--text-sm);
+  color: var(--faint);
+  margin-left: var(--space-1);
+}
+/* 扫描版 PDF 提示条 */
+.ut-doc-pdf-hint {
+  font-size: var(--text-sm);
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+/* 图片翻译工作台：画布容器 */
+.ut-img-wrap {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  overflow: auto;
+}
+.ut-img-wrap canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .18);
+  background: var(--card);
+}
 .ut-progress__row .ut-progress__text {
   flex: 1;
 }
@@ -997,9 +1056,11 @@ body[data-view="bilingual"] .ut-unit__translated {
 
 /* ================= 动效 ================= */
 @keyframes stage-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
+
+/* 拖拽框与内容一律不受位移影响，切换工作台时位置零扰动 */
 
 /* ================= 窄屏适配 ================= */
 @media (max-width: 920px) {

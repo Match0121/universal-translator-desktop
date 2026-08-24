@@ -10,6 +10,7 @@
 //  - html/docx/epub 的 raw 记录节点定位（seq），写回时用同一过滤规则重新定位节点
 
 import { readText } from '../game/encoding.js';
+import { store } from '../../store.js';
 
 export const DOC_EXT = new Set(['md', 'txt', 'html', 'htm', 'docx', 'epub', 'xlsx', 'pptx', 'pdf']);
 const DOCX_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -28,14 +29,16 @@ export function detectDocType(fileName) {
   return null;
 }
 
-function isTranslateableDoc(s) {
+function isTranslateableDoc(s, targetLang) {
   if (!s) return false;
   const t = s.trim();
   if (!t || t.length > 800) return false;
-  if (/^[\d\s.,%+\-*\/=<>:;|!?()[\]{}"'`~^#$@&]+$/.test(t)) return false;
-  // 已是中文的行跳过（中文标点/虚词/4+汉字无假名），避免中文文档行送译被判失败
+  if (/^[\d\s.,%+\-*\/=<>:;|!?()[\]{}"\'`~^#$@&]+$/.test(t)) return false;
+  // 目标语言是中文时，已是中文的行跳过（避免中→中空转）；目标语言非中文时中文照常送译
+  const lang = (targetLang || store.state.settings.targetLang || 'zh-CN');
   const han = (t.match(/[\u4e00-\u9fff]/g) || []).length;
   if (han > 0 && !/[\u3040-\u30ff\uff61-\uff9f]/.test(t)) {
+    if (!lang.startsWith('zh')) return true;
     if (/[，。！？；：「」“”、《》【】]/.test(t)) return false;
     if (/[的吧了是在这那吗呢和被与就都还很从到对]/.test(t)) return false;
     if (han >= 4) return false;
@@ -367,18 +370,40 @@ async function rebuildPptx(file, units, mode) {
   return { blob };
 }
 
-/* ---------------- PDF（后端 pymupdf 解析，文本型） ---------------- */
+/* ---------------- PDF（后端 pymupdf 解析 + OCR 图片型） ---------------- */
 
-async function extractPdf(file, fileName) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function extractPdf(file, fileName, onProgress, forceOcr) {
   const res = await fetch('/api/pdf/extract', { method: 'POST', body: file });
   const data = await res.json().catch(() => ({}));
   if (!data || !data.ok) throw new Error((data && data.error) || 'PDF 解析失败（请确认文件有效）');
-  const units = (data.paragraphs || []).map((p, i) => ({
+  const mkUnits = (paragraphs, pdfKind) => (paragraphs || []).map((p, i) => ({
     file: fileName, seq: i, original: p.original,
-    raw: { tempId: data.tempId, textType: data.text_type },
-    translated: '', error: '', ex: 'pdf', docType: 'pdf',
+    raw: { tempId: data.tempId, pdfKind }, translated: '', error: '', ex: 'pdf', docType: 'pdf',
   }));
-  return { units, meta: { tempId: data.tempId, textType: data.text_type, totalChars: data.total_chars, pageCount: data.page_count } };
+  let units = mkUnits(data.paragraphs, forceOcr ? 'ocr' : data.pdf_kind);
+  // OCR 触发：图片型（扫描件）自动，或用户强制图片 OCR（文字层乱码/缺失时）
+  if (forceOcr || data.pdf_kind === 'image') {
+    if (onProgress) onProgress(`OCR 识别 ${fileName}（${forceOcr ? '强制图片 OCR' : '扫描版'}，共 ${data.page_count} 页）…`);
+    await fetch('/api/pdf/ocr', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tempId: data.tempId }),
+    });
+    for (let i = 0; i < 6000; i++) {
+      await sleep(500);
+      const st = await fetch(`/api/pdf/ocr/status?tempId=${data.tempId}`).then(r => r.json()).catch(() => ({}));
+      if (!st.ok) break;
+      if (st.error) throw new Error('OCR 识别失败：' + st.error);
+      if (st.running && st.page > 0 && onProgress) onProgress(`OCR 识别 ${fileName}：${st.page}/${st.total} 页`);
+      if (!st.running && st.paragraphs) {
+        units = mkUnits(st.paragraphs, forceOcr ? 'ocr' : 'image');
+        break;
+      }
+    }
+    if (!units.length) throw new Error('OCR 未能识别到文字（扫描件可能过于模糊）');
+  }
+  return { units, meta: { tempId: data.tempId, pdfKind: forceOcr ? 'ocr' : data.pdf_kind, totalChars: data.total_chars, pageCount: data.page_count } };
 }
 
 /** PDF 导出：调后端生成 Word / Markdown / 重排 PDF */
@@ -401,7 +426,7 @@ export async function exportPdfDoc(tempId, units, fmt) {
 
 /* ---------------- 统一入口 ---------------- */
 
-export async function extractDoc(file, fileName) {
+export async function extractDoc(file, fileName, onProgress, forceOcr) {
   const type = detectDocType(fileName);
   switch (type) {
     case 'plain': return extractPlain(file, fileName);
@@ -410,7 +435,7 @@ export async function extractDoc(file, fileName) {
     case 'epub': return extractEpub(file, fileName);
     case 'xlsx': return extractXlsx(file, fileName);
     case 'pptx': return extractPptx(file, fileName);
-    case 'pdf': return extractPdf(file, fileName);
+    case 'pdf': return extractPdf(file, fileName, onProgress, forceOcr);
     default: throw new Error('不支持的文档格式：' + fileName);
   }
 }

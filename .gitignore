@@ -21,3 +21,6 @@ mk_fixture*.py
 promo-drafts/
 PROMO-LOG.md
 
+
+# 打包日志
+build_log*.txt

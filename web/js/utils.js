@@ -58,6 +58,39 @@ export function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
+/** 保存导出文件：优先弹系统保存对话框（选位置+命名），失败/不可用时回退浏览器下载 */
+export async function saveBlobDialog(blob, suggestedName) {
+  const pick = await pickSaveFile(suggestedName);
+  if (pick.ok) {
+    await writeSaveHandle(pick.handle, blob);
+    return true;
+  }
+  if (pick.cancelled) return true;   // 用户取消
+  downloadBlob(blob, suggestedName);
+  return false;
+}
+
+/** 在用户激活窗口内提前弹保存框拿句柄（必须在点击事件的同步/首拍调用） */
+export async function pickSaveFile(suggestedName) {
+  try {
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({ suggestedName });
+      return { ok: true, handle };
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return { ok: false, cancelled: true };   // 用户取消
+    return { ok: false, error: e };
+  }
+  return { ok: false };
+}
+
+/** 把 blob 写入已选中的保存句柄 */
+export async function writeSaveHandle(handle, blob) {
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
 /** 把字符串里第 n 次（0 起）出现的 from 替换为 to */
 export function replaceNth(s, from, to, n) {
   let idx = -1, count = 0;

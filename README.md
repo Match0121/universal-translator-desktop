@@ -1,64 +1,50 @@
 # 万能翻译站 · Universal Translator
 
-**万能文本翻译工具（Windows 桌面版）**：不用在文件管理器与多种翻译软件之间挣扎，将你的文件拖入框内——不管是文件、游戏还是图片，**识别 → 提取 → 翻译 → 替换**，一个平台解决所有烦恼。
+> Windows 桌面端全能翻译工具：文件、文档、游戏、图片，拖入即译。
+> Drag in files, documents, games or images — detect, extract, translate, done.
 
 ![导入界面](docs/assets/screenshot-import.png)
 
-拖入游戏文件夹，自动扫描文本并识别引擎：
+## 亮点
 
-![扫描界面](docs/assets/screenshot-scan.png)
+- **拖入即译**：文件或整个游戏文件夹拖进窗口，自动扫描、自动识别，无需挑选
+- **文档翻译**：Word / Excel / PPT / EPUB / PDF / HTML / Markdown / TXT；PDF 自动分类，文本型直接提取、扫描件走 OCR；PDF 导出保持原排版——文本型原位替换译文，扫描件整页渲染成图后覆盖译文
+- **图片翻译**：PNG / JPG / WebP / BMP 拖入即 OCR，图上标注三态查看（仅原文 / 对照 / 仅译文），导出 TXT / Markdown / 译文标注图
+- **保存对话框**：导出时先弹系统另存为选位置（单文件），多文件批量直接下载
+- **游戏翻译**：Ren'Py / 吉里吉里剧本自动识别，xp3 解包 → 翻译 → 封包回写；编码自动检测（UTF-8 / UTF-16 / Shift-JIS / GBK），日文剧本免转码
+- **多翻译引擎**：MyMemory（免费免配置）/ 百度 / DeepL / OpenAI 兼容接口（本地 LLM 也可）
+- **完全本地**：所有处理本机完成，文件不出电脑；深浅双主题偏好自动记忆
 
-按文件查看翻译结果，原文 / 译文对照：
+## 快速开始
 
-![翻译浏览界面](docs/assets/screenshot-browse.png)
+1. 从 [Releases](https://github.com/Match0121/universal-translator-desktop/releases) 下载 `UniversalTranslator.exe`（Windows 10/11，无需安装任何依赖）
+2. 双击运行。首次提示「未知发布者」时点「更多信息 → 仍要运行」（未签名软件的标准提示，属正常现象）
+3. 把文件或文件夹拖进窗口，等待扫描、翻译，导出译文
 
-## 核心特性
+使用说明与更新日志已内置：右上角 ⚙ 设置。
 
-- **拖入即译**：把文件或整个游戏文件夹拖进窗口，自动扫描、自动识别引擎，无需手动挑选文件
-- **编码自动识别**：UTF-8 / UTF-16 / Shift-JIS（日文）/ GBK（中文），日文游戏剧本无需手动转码
-- **多格式提取**：txt / json / yaml / ini / srt / ass / rpy（Ren'Py）/ ks（吉里吉里，含日文「」引号）
-- **xp3 资源包解包**：吉里吉里游戏的剧本锁在 .xp3 里？一键解包 → 翻译 → 重新封包回写（加密包暂不支持）
-- **原编码写回**：导出保持文件原编码；译文超出原编码字符集时自动转存 UTF-8 并提示
-- **多翻译引擎**：MyMemory（免费）/ 百度 / DeepL / OpenAI 兼容接口（本地 LLM 也可）
-- **按文件查看译文**：左侧文件树切换，仅原文 / 对照 / 仅译文一键切换
-- **深浅双主题**：暖灰纸感浅色 + 暖石墨深色，偏好自动记忆
-- **完全本地**：所有处理在本机完成，游戏文件不出电脑
+## 支持的输入
 
-## 开发进度
+| 类别 | 格式 | 说明 |
+| --- | --- | --- |
+| 文本文件 | txt / md / log / json / yaml / ini / cfg / srt / ass | 导出保持原编码写回 |
+| 游戏剧本 | rpy（Ren'Py）、ks（吉里吉里） | 引擎自动识别 |
+| 资源包 | xp3（吉里吉里） | 解包 → 翻译 → 封包回写；加密包不支持 |
+| 文档 | docx / xlsx / pptx / epub / html / pdf | PDF 文本型 / 扫描件自动分流；文字层乱码时可强制图片 OCR |
+| 图片 | png / jpg / webp / bmp | OCR 识别文字 + 三态标注 + 标注图导出 |
 
-| 模块 | 状态 |
-| --- | --- |
-| 文本文件翻译（txt/json/ini/srt/ass 等） | ✅ 已实现 |
-| 游戏翻译（引擎识别 + rpy/ks 剧本 + xp3 解包封包） | ✅ 已实现 |
-| 文档翻译（md/txt/html + docx/epub/xlsx/pptx） | ✅ 已实现 |
-| 文档翻译（PDF） | 🔜 规划中 |
-| 图片翻译（图片文字识别与替换） | 🔜 规划中 |
-
-## 下载与使用
-
-从 [Releases](https://github.com/Match0121/universal-translator-desktop/releases) 下载 `UniversalTranslator.exe`，双击运行（Windows 10/11，无需安装任何依赖）。
-
-**首次运行提示"未知发布者"**：点「更多信息 → 仍要运行」即可（未签名软件的标准提示，属正常现象）。
-
-使用说明与更新日志已内置在应用内：右上角 ⚙ 设置 → 使用说明 / 更新日志。
-
-## 支持翻译的文件
-
-- **文本文件**：`txt` / `md` / `log` / `json` / `xml` / `yaml` / `ini` / `cfg` / `srt` / `ass` 等
-- **游戏剧本**：`rpy`（Ren'Py）、`ks`（吉里吉里）
-- **资源包**：吉里吉里 `xp3`（解包翻译后封包回写；加密包不支持）
-- **暂不支持**：图片文字、Unity/UE 等引擎的资源包、程序内嵌字符串
+暂不支持：Unity/UE 等引擎资源包、程序内嵌字符串。
 
 ## 翻译引擎
 
 | 引擎 | 说明 |
 | --- | --- |
-| MyMemory | 免费，无需配置，有每日额度 |
+| MyMemory | 免费免配置，有每日额度 |
 | 百度翻译 | 国内稳定，免费额度，需 APP ID + 密钥 |
 | DeepL | 需 API Key |
-| OpenAI 兼容接口 | 本地 LLM（Ollama / LM Studio 等） |
+| OpenAI 兼容接口 | 可接本地 LLM（Ollama / LM Studio 等） |
 
-## 开发模式
+## 开发
 
 ```powershell
 pip install pywebview
@@ -71,124 +57,32 @@ python desktop.py
 
 ## 更新日志
 
+### v1.3.0 (2026-08-25)
+- **新增图片翻译工作台**：PNG / JPG / WebP / BMP 拖入即 OCR，三态标注视图，导出 TXT / Markdown / 译文标注图
+- **PDF 智能分类**：文字层 / 扫描件 / 空白自动分流；扫描件自动 OCR（150dpi + 模型复用提速）
+- **PDF 原排版导出**：文本型原文原位擦除嵌入译文；扫描件整页渲染成图、按图片翻译方式覆盖译文；未翻译内容原样保留
+- **PDF 提取方式可选**：文字层 / 图片 OCR（文字层乱码时强制逐页识别）
+- **导出保存对话框**：单文件导出先弹系统另存为选位置
+- **目标语言感知**：目标语言非中文时，中文原文正常送译
+- **背景色自适应**：深色卡片等复杂背景上覆盖不再露白块，译文自动反色
+
 ### v1.2.0 (2026-08-17)
-- **新增文档翻译**：Word（.docx）/ Excel（.xlsx）/ PPT（.pptx）/ EPUB / HTML / Markdown / TXT，拖入即译，保留原格式导出
-- **翻译缓存管理**：2 万条自动上限（LRU 裁剪）+ 设置里一键清除
-- **中文行自动跳过**：已是中文的内容不再送译，消除虚假失败计数
-- **UI 打磨**：游戏/文档拖拽框统一（结构与文案）、翻译完成保留进度条、返回按钮统一左上角、双栏严格对齐、进度条像素宽度不溢出
-- **JSZip 本地化**：离线环境也能正常导出
+- **新增文档翻译**：Word / Excel / PPT / EPUB / HTML / Markdown / TXT，拖入即译，保留原格式导出
+- 翻译缓存管理：2 万条自动上限（LRU 裁剪）+ 设置一键清除
+- 中文行自动跳过，消除虚假失败计数
+- UI 打磨：拖拽框统一、进度条保留完成态、返回按钮统一左上角、双栏严格对齐
+- JSZip 本地化，离线也能导出
 
 ### v1.1.1 (2026-08-14)
 - 使用说明补充「支持翻译的文件」范围清单
 
 ### v1.1.0 (2026-08-14) · 首个正式版本
-- 全新「高级简约」界面（暖灰纸感基底、墨色主按钮、雾钢蓝点缀、深浅双主题）
+- 全新「高级简约」界面：暖灰纸感、墨色主按钮、雾钢蓝点缀，深浅双主题
 - 文件编码自动检测，日文游戏免转码
 - 吉里吉里 xp3 资源包解包 + 封包
 - 导出保持原编码写回
-- 翻译 / 扫描界面返回按钮；使用说明与更新日志内置
 - 版本号采用 x.x.x 三位格式
 
 ## License
 
 [MIT](LICENSE)
-
----
-
-# English Version
-
-# Universal Translator
-
-**A universal text translation tool for Windows desktop**: stop juggling between file managers and multiple translation apps. Just drag your files into the box — documents, games, or images — **detect → extract → translate → replace**, all in one place.
-
-![Import screen](docs/assets/screenshot-import.png)
-
-Drag in a game folder; text files are scanned and the engine auto-detected:
-
-![Scan screen](docs/assets/screenshot-scan.png)
-
-Review per-file translations, original vs translated side by side:
-
-![Browse & translate screen](docs/assets/screenshot-browse.png)
-
-## Highlights
-
-- **Drag & translate**: drop a file or a whole game folder into the window; it auto-scans and auto-detects the engine
-- **Encoding auto-detection**: UTF-8 / UTF-16 / Shift-JIS (Japanese) / GBK (Chinese) — no manual transcoding for Japanese game scripts
-- **Multi-format extraction**: txt / json / yaml / ini / srt / ass / rpy (Ren'Py) / ks (KiriKiri, incl. Japanese 「」 quotes)
-- **xp3 archive unpacking**: game scripts locked inside .xp3? Unpack → translate → repack in one click (encrypted packs not supported yet)
-- **Original encoding preserved**: exports keep the source encoding; falls back to UTF-8 with a hint when the target charset can't represent the translation
-- **Multiple translation engines**: MyMemory (free) / Baidu / DeepL / OpenAI-compatible endpoints (local LLMs work too)
-- **Per-file review**: file tree on the left, switch between Original / Bilingual / Translated views
-- **Light & dark themes**: warm paper-light and graphite-dark, preference remembered
-- **100% local**: everything happens on your machine; game files never leave your computer
-
-## Roadmap
-
-| Module | Status |
-| --- | --- |
-| Text file translation (txt/json/ini/srt/ass etc.) | ✅ Done |
-| Game translation (engine detection + rpy/ks scripts + xp3 unpack/repack) | ✅ Done |
-| Document translation (md/txt/html + docx/epub/xlsx/pptx) | ✅ Done |
-| Document translation (PDF) | 🔜 Planned |
-| Image translation (OCR + text replacement) | 🔜 Planned |
-
-## Download & Usage
-
-Grab `UniversalTranslator.exe` from the [Releases](https://github.com/Match0121/universal-translator-desktop/releases) page and double-click it (Windows 10/11, no dependencies to install).
-
-**"Unknown publisher" warning on first run**: click "More info → Run anyway". This is the standard prompt for unsigned software.
-
-The in-app help and changelog live in Settings (⚙ top right) → Help / Changelog.
-
-## Supported Files
-
-- **Text files**: `txt` / `md` / `log` / `json` / `xml` / `yaml` / `ini` / `cfg` / `srt` / `ass` etc.
-- **Game scripts**: `rpy` (Ren'Py), `ks` (KiriKiri)
-- **Archives**: KiriKiri `xp3` (unpack → translate → repack; encrypted packs not supported)
-- **Not yet**: text in images, Unity/UE asset packs, strings embedded in binaries
-
-## Translation Engines
-
-| Engine | Notes |
-| --- | --- |
-| MyMemory | Free, no config, daily quota |
-| Baidu Translate | Stable in China, free tier, requires APP ID + secret |
-| DeepL | Requires API key |
-| OpenAI-compatible | Local LLMs (Ollama / LM Studio etc.) |
-
-## Development
-
-```powershell
-pip install pywebview
-python desktop.py
-```
-
-Falls back to the system browser automatically if the embedded window is unavailable.
-
-Build: run `build.bat`; output goes to `dist\UniversalTranslator.exe`.
-
-## Changelog
-
-### v1.2.0 (2026-08-17)
-- **Document translation added**: Word (.docx) / Excel (.xlsx) / PPT (.pptx) / EPUB / HTML / Markdown / TXT — drag in and translate, export keeps the original format
-- **Translation cache management**: 20k-entry auto cap (LRU trim) + one-click clear in Settings
-- **Chinese lines auto-skipped**: no more bogus failure counts
-- **UI polish**: unified drop zones, progress bar keeps completion state, back buttons top-left, strict two-pane alignment
-- **JSZip local**: export works offline
-
-### v1.1.1 (2026-08-14)
-- Help section now lists the full supported-file scope
-
-### v1.1.0 (2026-08-14) · First official release
-- New minimal-premium UI (warm paper background, ink buttons, mist-steel-blue accents, light & dark themes)
-- Encoding auto-detection — no manual transcoding for Japanese games
-- KiriKiri xp3 unpack & repack
-- Exports preserve original encoding
-- Back buttons on scan/browse screens; in-app help & changelog
-- Semantic versioning x.x.x
-
-## License
-
-[MIT](LICENSE)
-

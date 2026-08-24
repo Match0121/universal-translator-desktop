@@ -23,7 +23,8 @@ import uuid
 import webbrowser
 
 from unpack.xp3 import Xp3Error, pack_bytes, unpack_bytes
-from pdf import PdfError, extract_pdf, export_translated
+from pdf import PdfError, extract_pdf, export_translated, start_ocr, ocr_status
+from img import ImgError, ocr_image
 
 APP_NAME = 'Universal Translator'
 CANDIDATE_PORTS = (8123, 8000, 8124, 8125, 8130, 8888)
@@ -144,6 +145,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/api/unpack-file?'):
             self._handle_unpack_file()
             return
+        if self.path.startswith('/api/pdf/ocr/status?'):
+            self._handle_pdf_ocr_status()
+            return
         super().do_GET()
 
     def do_POST(self):
@@ -159,6 +163,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._handle_pdf_extract()
         elif self.path == '/api/pdf/export':
             self._handle_pdf_export()
+        elif self.path == '/api/pdf/ocr':
+            self._handle_pdf_ocr()
+        elif self.path == '/api/img/ocr':
+            self._handle_img_ocr()
         else:
             self.send_error(404, 'Not Found')
 
@@ -262,6 +270,50 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 502)
 
+    def _handle_pdf_ocr(self):
+        # 接收 {tempId} → 启动后台 OCR 线程（图片型 PDF），立即返回
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length).decode('utf-8')) if length else {}
+            temp_id = body.get('tempId') or ''
+            pdf_dir = os.path.join(ensure_pdf_root(), temp_id)
+            src = os.path.join(pdf_dir, 'source.pdf')
+            if not temp_id or not os.path.isfile(src):
+                raise RuntimeError('PDF 会话不存在或已过期，请重新提取')
+            start_ocr(src, os.path.join(pdf_dir, 'ocr.json'))
+            self._json({'ok': True})
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_pdf_ocr_status(self):
+        # GET /api/pdf/ocr/status?tempId=xxx → 返回 OCR 进度/结果
+        try:
+            from urllib.parse import urlparse, parse_qs
+            qs = parse_qs(urlparse(self.path).query)
+            temp_id = (qs.get('tempId') or [''])[0]
+            pdf_dir = os.path.join(ensure_pdf_root(), temp_id)
+            if not temp_id or not os.path.isdir(pdf_dir):
+                raise RuntimeError('PDF 会话不存在或已过期，请重新提取')
+            st = ocr_status(os.path.join(pdf_dir, 'ocr.json'))
+            self._json({'ok': True, **st})
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
+    def _handle_img_ocr(self):
+        # 接收图片字节 → OCR 识别文字框 → 返回坐标与文本
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length <= 0:
+                raise RuntimeError('未收到文件内容')
+            data = self.rfile.read(length)
+            filename = self.headers.get('X-Filename') or 'image.png'
+            result = ocr_image(data, filename)
+            self._json({'ok': True, 'count': len(result['boxes']), **result})
+        except ImgError as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+        except Exception as e:
+            self._json({'ok': False, 'error': str(e)}, 502)
+
     def _handle_pdf_export(self):
         # 接收 {tempId, translated, fmt} → 读回 PDF+段落 → 生成译文文档返回
         try:
@@ -275,9 +327,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             paras_path = os.path.join(pdf_dir, 'paras.json')
             if not temp_id or not os.path.isfile(src) or not os.path.isfile(paras_path):
                 raise RuntimeError('PDF 会话不存在或已过期，请重新提取')
-            with open(paras_path, encoding='utf-8') as f:
-                original_paras = json.load(f)
-            blob, fname, mime = export_translated(original_paras, translated, fmt)
+            # 原文段落：OCR 完成优先用 OCR 段落（含 boxes），否则文字层段落（含 rects）
+            original_paras = []
+            ocr_path = os.path.join(pdf_dir, 'ocr.json')
+            if os.path.isfile(ocr_path):
+                try:
+                    with open(ocr_path, encoding='utf-8') as f:
+                        st = json.load(f)
+                    if st.get('paragraphs'):
+                        original_paras = st['paragraphs']
+                except Exception:
+                    pass
+            if not original_paras:
+                with open(paras_path, encoding='utf-8') as f:
+                    original_paras = json.load(f)
+            with open(src, 'rb') as f:
+                src_bytes = f.read()
+            blob, fname, mime = export_translated(original_paras, translated, fmt, src_bytes)
             self.send_response(200)
             self.send_header('Content-Type', mime)
             self.send_header('Cache-Control', 'no-cache')
