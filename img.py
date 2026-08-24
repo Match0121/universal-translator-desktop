@@ -5,13 +5,20 @@
     box 为原图像素坐标 [x1, y1, x2, y2]（左上/右下）
 
 依赖：rapidocr_onnxruntime（引擎复用 pdf.py 的加载逻辑）、opencv-python（解码与尺寸）
+精简版（不含 OCR）缺少依赖时优雅报错提示。
 """
 import os
 import tempfile
 
-import cv2
-
 from pdf import _ocr_engine
+
+
+def _cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception:
+        raise ImgError('图片组件未安装（精简版不含 OCR，无法识别图片文字）')
 
 
 class ImgError(Exception):
@@ -23,6 +30,7 @@ def ocr_image(data, filename='image.png'):
     boxes: [{box: [x1,y1,x2,y2], text, score}]，坐标按输入图原始像素。
     格式由内容自动识别（opencv 解码），临时文件统一用 .png 后缀即可。
     """
+    cv2 = _cv2()
     fd, tmp = tempfile.mkstemp(suffix='.png')
     try:
         with os.fdopen(fd, 'wb') as f:
