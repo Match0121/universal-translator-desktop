@@ -24,3 +24,7 @@ PROMO-LOG.md
 
 # 打包日志
 build_log*.txt
+
+# lint脚本/构建日志
+build_*.txt
+UniversalTranslator-lite.spec

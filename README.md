@@ -18,8 +18,8 @@
 ## 快速开始
 
 1. 从 [Releases](https://github.com/Match0121/universal-translator-desktop/releases) 下载 exe（Windows 10/11，无需安装任何依赖）
-   - **完整版 `UniversalTranslator-v1.3.0.exe`（~208MB，推荐）**：含 OCR，图片翻译与扫描件 PDF 识别可用
-   - **精简版 `UniversalTranslator-v1.3.0-lite.exe`（~40MB）**：无 OCR，文档/游戏/图片翻译中仅 OCR 相关能力不可用
+ - 完整版 UniversalTranslator-v1.3.0.exe（~208MB，推荐）：含 OCR，图片翻译与扫描件 PDF 识别可用
+ - 精简版 UniversalTranslator-v1.3.0-lite.exe（~10MB）：无 OCR，文档/游戏/图片翻译中仅 OCR 相关能力不可用
 2. 双击运行。首次提示「未知发布者」时点「更多信息 → 仍要运行」（未签名软件的标准提示，属正常现象）
 3. 把文件或文件夹拖进窗口，等待扫描、翻译，导出译文
 
