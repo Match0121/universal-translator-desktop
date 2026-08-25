@@ -10,10 +10,8 @@ pip install pywebview pyinstaller
 if errorlevel 1 goto :err
 
 echo.
-echo [2/2] Building exe...
-pyinstaller --noconfirm --clean --onefile --windowed --name "UniversalTranslator" ^
-  --add-data "web;web" ^
-  desktop.py
+echo [2/2] Building exe (via UniversalTranslator.spec, includes OCR data)...
+pyinstaller --noconfirm --clean UniversalTranslator.spec
 if errorlevel 1 goto :err
 
 echo.
